@@ -15,7 +15,6 @@ To speed up the display of each session SessionViewer viewer produces a **large*
 ## Third party libraries ##
 
 - [ObjectListView](http://objectlistview.sourceforge.net/cs/index.html) : Data viewing via lists 
-- [Awesomium](http://awesomium.com/): Provides the HTML web view for the colourised output
 - [MS SQL CE](http://www.microsoft.com/en-us/download/details.aspx?id=30709) : Access to MS SQL CE session database
 - [Be.HexEditor](http://sourceforge.net/projects/hexbox/) : HEX view of packet data
 - [PCAPDotNet](http://pcapdotnet.codeplex.com/) : Parsing of PCAP files
