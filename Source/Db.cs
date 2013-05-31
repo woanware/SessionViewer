@@ -16,6 +16,9 @@ namespace SessionViewer
   [Id] bigint NOT NULL IDENTITY (1,1)
 , [Guid] nvarchar(36)
 , [HttpHost] nvarchar(1024)
+, [HttpMethods] nvarchar(100)
+, [IsGzipped] bit
+, [IsChunked] bit
 , [DataSize] bigint NULL
 , [TimestampFirstPacket] datetime NULL
 , [TimestampLastPacket] datetime NULL
@@ -59,7 +62,6 @@ namespace SessionViewer
                         }
                     }
                 }
-                
 
                 return string.Empty;
             }

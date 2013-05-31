@@ -2,10 +2,14 @@
 using System.Collections.Generic;
 using System.Data.Common;
 using System.IO;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Be.Windows.Forms;
 using BrightIdeasSoftware;
+using CsvHelper.Configuration;
+using ProtoBuf;
 using woanware;
 
 namespace SessionViewer
@@ -16,6 +20,7 @@ namespace SessionViewer
     public partial class FormMain : Form
     {
         #region Member Variables
+        private Settings _settings;
         private HourGlass _hourGlass;
         private Parser _parser;
         private string _outputPath = string.Empty;
@@ -66,6 +71,7 @@ namespace SessionViewer
         private void OnParser_Error(string message)
         {
             _hourGlass.Dispose();
+            IO.WriteTextToFile(message + Environment.NewLine, System.IO.Path.Combine(Misc.GetApplicationDirectory(), "Errors.txt"), true);
             UserInterface.DisplayErrorMessageBox(this, message);
             SetProcessingStatus(true);
         }
@@ -75,6 +81,12 @@ namespace SessionViewer
         /// </summary>
         private void OnParser_Complete()
         {
+            _parser.Complete -= OnParser_Complete;
+            _parser.Error -= OnParser_Error;
+            _parser.Exclamation -= OnParser_Exclamation;
+            _parser.Message -= OnParser_Message;
+            _parser = null;
+
             LoadSessions();
         }
         #endregion
@@ -186,7 +198,7 @@ namespace SessionViewer
         /// <param name="e"></param>
         private void menuHelpHelp_Click(object sender, EventArgs e)
         {
-
+            Misc.ShellExecuteFile(System.IO.Path.Combine(Misc.GetApplicationDirectory(), "Help.pdf"));
         }
 
         /// <summary>
@@ -217,6 +229,16 @@ namespace SessionViewer
                 _hourGlass = new HourGlass(this);
                 SetProcessingStatus(false);
 
+                listSession.ClearObjects();
+
+                _parser = new Parser();
+                _parser.AutoGzip = _settings.AutoGzip;
+                _parser.BufferInterval = _settings.BufferInterval;
+                _parser.SessionInterval = _settings.SessionInterval;
+                _parser.Complete += OnParser_Complete;
+                _parser.Error += OnParser_Error;
+                _parser.Exclamation += OnParser_Exclamation;
+                _parser.Message += OnParser_Message;
                 _parser.Parse(formOpen.PcapFile, formOpen.DatabaseFile);
             }
         }
@@ -244,9 +266,84 @@ namespace SessionViewer
             _outputPath = folderBrowserDialog.SelectedPath;
             LoadSessions();
         }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void menuToolsOptions_Click(object sender, EventArgs e)
+        {
+            using (FormOptions formOptions = new FormOptions(_settings.AutoGzip, 
+                                                             _settings.BufferInterval, 
+                                                             _settings.SessionInterval))
+            {
+                if (formOptions.ShowDialog(this) == DialogResult.Cancel)
+                {
+                    return;
+                }
+
+                _settings.AutoGzip = formOptions.AutoGzip;
+                _settings.BufferInterval = formOptions.BufferInterval;
+                _settings.SessionInterval = formOptions.SessionInterval;
+
+                _parser.AutoGzip = formOptions.AutoGzip;
+                _parser.BufferInterval = formOptions.BufferInterval;
+                _parser.SessionInterval = formOptions.SessionInterval;
+            }
+        }
         #endregion
 
         #region Form Event Handlers
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void FormMain_Load(object sender, EventArgs e)
+        {
+            _settings = new Settings();
+            if (_settings.FileExists == true)
+            {
+                string ret = _settings.Load();
+                if (ret.Length > 0)
+                {
+                    UserInterface.DisplayErrorMessageBox(this, ret);
+                }
+                else
+                {
+                    this.WindowState = _settings.FormState;
+
+                    if (_settings.FormState != FormWindowState.Maximized)
+                    {
+                        this.Location = _settings.FormLocation;
+                        this.Size = _settings.FormSize;
+                    }
+                }
+            }
+
+            _parser.AutoGzip = _settings.AutoGzip;
+            _parser.BufferInterval = _settings.BufferInterval;
+            _parser.SessionInterval = _settings.SessionInterval;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void FormMain_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            _settings.FormLocation = base.Location;
+            _settings.FormSize = base.Size;
+            _settings.FormState = base.WindowState;
+            string ret = _settings.Save();
+            if (ret.Length > 0)
+            {
+                UserInterface.DisplayErrorMessageBox(this, ret);
+            }
+        }
+
         /// <summary>
         /// 
         /// </summary>
@@ -256,7 +353,9 @@ namespace SessionViewer
         {
             if (e.KeyCode == Keys.A)
             {
-                OLVListItem next = listSession.GetNextItem(listSession.SelectedItem);
+                int index = listSession.GetDisplayOrderOfItemIndex(listSession.SelectedItem.Index);
+                OLVListItem next = listSession.GetNthItemInDisplayOrder(index + 1);
+                //OLVListItem next = listSession.GetNextItem(listSession.SelectedItem);
                 if (next == null)
                 {
                     return;
@@ -268,7 +367,10 @@ namespace SessionViewer
             }
             else if (e.KeyCode == Keys.Q)
             {
-                OLVListItem previous = listSession.GetPreviousItem(listSession.SelectedItem);
+                int index = listSession.GetDisplayOrderOfItemIndex(listSession.SelectedItem.Index);
+                OLVListItem previous = listSession.GetNthItemInDisplayOrder(index - 1);
+
+                //OLVListItem previous = listSession.GetPreviousItem(listSession.SelectedItem);
                 if (previous == null)
                 {
                     return;
@@ -322,6 +424,7 @@ namespace SessionViewer
                     olvcDestinationPort.AutoResize(ColumnHeaderAutoResizeStyle.HeaderSize);
                     olvcSize.AutoResize(ColumnHeaderAutoResizeStyle.ColumnContent);
                     olvcHttpHost.AutoResize(ColumnHeaderAutoResizeStyle.ColumnContent);
+                    olvcHttpMethods.AutoResize(ColumnHeaderAutoResizeStyle.ColumnContent);
                     olvcTimestampFirstPacket.AutoResize(ColumnHeaderAutoResizeStyle.ColumnContent);
                     olvcTimestampLastPacket.AutoResize(ColumnHeaderAutoResizeStyle.ColumnContent);
                 }
@@ -343,28 +446,58 @@ namespace SessionViewer
         /// <param name="session"></param>
         private void LoadSession(Session session)
         {
-            Task task = Task.Factory.StartNew(() =>
+            (new Thread(() =>
             {
                 MethodInvoker methodInvoker = delegate
                 {
-                    using (new HourGlass(this))
+                    try
                     {
-                        if (session == null)
+                        using (new HourGlass(this))
                         {
-                            UserInterface.DisplayErrorMessageBox(this, "Unable to locate session");
-                            return;
+                            if (session == null)
+                            {
+                                UserInterface.DisplayErrorMessageBox(this, "Unable to locate session");
+                                return;
+                            }
+
+                            using (var file = File.OpenRead(System.IO.Path.Combine(_outputPath, session.Guid + ".bin")))
+                            {
+                                Storage storage = Serializer.Deserialize<Storage>(file);
+
+                                // HEX
+                                DynamicByteProvider dynamicByteProvider = new DynamicByteProvider(storage.Hex);
+                                hexBox.ByteProvider = dynamicByteProvider;
+
+                                if (session.IsGzipped == true & session.IsChunked == false)
+                                {
+                                    webControl.DocumentText = storage.Gzip;
+                                }
+                                else
+                                {
+                                    webControl.DocumentText = storage.Html;
+                                }
+                                //// Colourised (HTML)
+                                //if (File.Exists(System.IO.Path.Combine(_outputPath, session.Guid + ".gzipped.html")) == true)
+                                //{
+                                //    webControl.DocumentText = storage.Gzip;//.Url = new Uri( String.Format(@"file:///" + System.IO.Path.Combine(_outputPath, session.Guid + ".gzipped.html"), _outputPath));
+                                //}
+                                //else
+                                //{
+                                //    webControl.Url = new Uri(String.Format(@"file:///" + System.IO.Path.Combine(_outputPath, session.Guid + ".html"), _outputPath));
+                                //}
+
+                                // ASCII
+                                //txtSession.Text = File.ReadAllText(System.IO.Path.Combine(_outputPath, session.Guid + ".txt"));
+                                txtSession.Text = storage.Ascii;
+                                txtSession.ScrollToTop();
+                            }
+
+
                         }
+                    }
+                    catch (Exception ex)
+                    {
 
-                        // HEX
-                        DynamicByteProvider dynamicByteProvider = new DynamicByteProvider(File.ReadAllBytes(System.IO.Path.Combine(_outputPath, session.Guid + ".bin")));
-                        hexBox.ByteProvider = dynamicByteProvider;
-
-                        // Colourised (HTML)
-                        webControl.Url = new Uri(String.Format(@"file:///" + System.IO.Path.Combine(_outputPath, session.Guid + ".html"), _outputPath));
-                        
-                        // ASCII
-                        txtSession.Text = File.ReadAllText(System.IO.Path.Combine(_outputPath, session.Guid + ".txt"));
-                        txtSession.ScrollToTop();
                     }
                 };
 
@@ -376,7 +509,7 @@ namespace SessionViewer
                 {
                     methodInvoker.Invoke();
                 }
-            });
+            })).Start();
         }
 
         /// <summary>
@@ -429,18 +562,6 @@ namespace SessionViewer
         }
         #endregion
 
-        #region Form Event Handlers
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void FormMain_Load(object sender, EventArgs e)
-        {
-            
-        }
-        #endregion
-
         #region Web Control Event Handlers
         /// <summary>
         /// This is used to reload the HTML content, since it is not correctly loaded the web 
@@ -470,6 +591,39 @@ namespace SessionViewer
         #endregion   
 
         #region Context Menu Event Handlers
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void context_Opening(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            if (listSession.SelectedObjects.Count != 1)
+            {
+                contextDecodeGzip.Enabled = false;
+                contextExportHex.Enabled = false;
+                return;
+            }
+
+            Session temp = (Session)listSession.SelectedObjects[0];
+            if (temp == null)
+            {
+                contextDecodeGzip.Enabled = false;
+                contextExportHex.Enabled = false;
+                return;
+            }
+
+            contextExportHex.Enabled = true;
+
+            if (temp.IsGzipped == false)
+            {
+                contextDecodeGzip.Enabled = false;
+                return;
+            }
+
+            contextDecodeGzip.Enabled = true;
+        }
+
         /// <summary>
         /// 
         /// </summary>
@@ -538,6 +692,198 @@ namespace SessionViewer
         private void contextCopyTimestampLastPacket_Click(object sender, EventArgs e)
         {
             CopyDataToClipboard(Global.FieldsCopy.TimestampLastPacket);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void contextExportUniqueSourceIp_Click(object sender, EventArgs e)
+        {
+            SaveFileDialog saveFileDialog = new SaveFileDialog();
+            saveFileDialog.Title = "Select the export CSV";
+            saveFileDialog.Filter = "TSV Files|*.tsv";
+            if (saveFileDialog.ShowDialog(this) == DialogResult.Cancel)
+            {
+                return;
+            }
+
+            List<Session> sessions = listSession.Objects.Cast<Session>().ToList();
+            var unique = sessions.Select(s => s.SrcIpText).Distinct();
+
+            CsvConfiguration csvConfiguration = new CsvConfiguration();
+            csvConfiguration.Delimiter = '\t';
+
+            using (FileStream fileStream = new FileStream(saveFileDialog.FileName, FileMode.Append, FileAccess.Write))
+            using (StreamWriter streamWriter = new StreamWriter(fileStream))
+            using (CsvHelper.CsvWriter csvWriter = new CsvHelper.CsvWriter(streamWriter, csvConfiguration))
+            {
+                csvWriter.WriteField("Source IP");
+                csvWriter.NextRecord();
+
+                foreach (var ip in unique)
+                {
+                    csvWriter.WriteField(ip);
+                    csvWriter.NextRecord();
+                }
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void contextExportDestinationIp_Click(object sender, EventArgs e)
+        {
+            SaveFileDialog saveFileDialog = new SaveFileDialog();
+            saveFileDialog.Title = "Select the export CSV";
+            saveFileDialog.Filter = "TSV Files|*.tsv";
+            if (saveFileDialog.ShowDialog(this) == DialogResult.Cancel)
+            {
+                return;
+            }
+
+            List<Session> sessions = listSession.Objects.Cast<Session>().ToList();
+            var unique = sessions.Select(s => s.DstIpText).Distinct();
+
+            CsvConfiguration csvConfiguration = new CsvConfiguration();
+            csvConfiguration.Delimiter = '\t';
+
+            using (FileStream fileStream = new FileStream(saveFileDialog.FileName, FileMode.Append, FileAccess.Write))
+            using (StreamWriter streamWriter = new StreamWriter(fileStream))
+            using (CsvHelper.CsvWriter csvWriter = new CsvHelper.CsvWriter(streamWriter, csvConfiguration))
+            {
+                csvWriter.WriteField("Destination IP");
+                csvWriter.NextRecord();
+
+                foreach (var ip in unique)
+                {
+                    csvWriter.WriteField(ip);
+                    csvWriter.NextRecord();
+                }
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void contextExportHex_Click(object sender, EventArgs e)
+        {
+            SaveFileDialog saveFileDialog = new SaveFileDialog();
+            saveFileDialog.Title = "Select the export CSV";
+            saveFileDialog.Filter = "TSV Files|*.tsv";
+            if (saveFileDialog.ShowDialog(this) == DialogResult.Cancel)
+            {
+                return;
+            }
+
+            if (listSession.SelectedObjects.Count != 1)
+            {
+                return;
+            }
+
+            Session temp = (Session)listSession.SelectedObjects[0];
+            if (temp == null)
+            {
+                return;
+            }
+
+            try
+            {
+                using (new HourGlass(this))
+                {
+                    using (var file = File.OpenRead(System.IO.Path.Combine(_outputPath, temp.Guid + ".bin")))
+                    {
+                        Storage storage = Serializer.Deserialize<Storage>(file);
+                        File.WriteAllBytes(saveFileDialog.FileName, storage.Hex.ToArray());
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                UserInterface.DisplayErrorMessageBox(this, "An error occurred whilst exporting: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void contextDecodeGzip_Click(object sender, EventArgs e)
+        {
+            if (listSession.SelectedObjects.Count != 1)
+            {
+                contextDecodeGzip.Enabled = false;
+                return;
+            }
+
+            Session temp = (Session)listSession.SelectedObjects[0];
+            if (temp == null)
+            {
+                contextDecodeGzip.Enabled = false;
+                return;
+            }
+
+            if (temp.IsGzipped == false)
+            {
+                contextDecodeGzip.Enabled = false;
+                return;
+            }
+
+            (new Thread(() =>
+            {
+                MethodInvoker methodInvoker = delegate
+                {
+                    using (new HourGlass(this))
+                    {
+                        if (temp == null)
+                        {
+                            UserInterface.DisplayErrorMessageBox(this, "Unable to locate session");
+                            return;
+                        }
+
+                        if (Functions.GzipDecodeSession(_outputPath, temp.Guid) == false)
+                        {
+                            UserInterface.DisplayErrorMessageBox(this, "Unable to gzip");
+                            return; 
+                        }
+
+                        LoadSession(temp);
+
+                        //// HEX
+                        //DynamicByteProvider dynamicByteProvider = new DynamicByteProvider(File.ReadAllBytes(System.IO.Path.Combine(_outputPath, session.Guid + ".bin")));
+                        //hexBox.ByteProvider = dynamicByteProvider;
+
+                        //// Colourised (HTML)
+                        //if (File.Exists(System.IO.Path.Combine(_outputPath, session.Guid + ".gzipped.html")) == true)
+                        //{
+                        //    webControl.Url = new Uri(String.Format(@"file:///" + System.IO.Path.Combine(_outputPath, session.Guid + ".gzipped.html"), _outputPath));
+                        //}
+                        //else
+                        //{
+                        //    webControl.Url = new Uri(String.Format(@"file:///" + System.IO.Path.Combine(_outputPath, session.Guid + ".html"), _outputPath));
+                        //}
+
+                        //// ASCII
+                        //txtSession.Text = File.ReadAllText(System.IO.Path.Combine(_outputPath, session.Guid + ".txt"));
+                        //txtSession.ScrollToTop();
+                    }
+                };
+
+                if (this.InvokeRequired == true)
+                {
+                    this.BeginInvoke(methodInvoker);
+                }
+                else
+                {
+                    methodInvoker.Invoke();
+                }
+            })).Start();
         }
         #endregion    
 

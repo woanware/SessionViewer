@@ -1,14 +1,14 @@
 ﻿using System;
-using System.Data;
-using System.Data.SqlClient;
-using System.Data.SqlServerCe;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Web;
-using PcapDotNet.Packets.Http;
 using PcapDotNet.Packets.IpV4;
 using PcapDotNet.Packets.Transport;
+using ProtoBuf;
+using PcapDotNet.Packets.Http;
 
 // Translated from the file follow.c from WireShark source code
 // the code can be found at: http://www.wireshark.org/download.html
@@ -37,8 +37,8 @@ namespace SessionViewer
     public class PacketReconstructor : IDisposable
     {
         #region Events
-        public event Global.MessageEvent Exclamation;
-        public event Global.MessageEvent Error;
+        //public event Global.MessageEvent Exclamation;
+        //public event Global.MessageEvent Error;
         #endregion
 
         #region Member Variables
@@ -50,11 +50,26 @@ namespace SessionViewer
         private uint[] _tcpPort = new uint[2];
         public DateTime? TimestampFirstPacket { get; set; }
         public DateTime? TimestampLastPacket { get; set; }
-        private System.IO.FileStream _dataFileHex = null;
-        private System.IO.FileStream _dataFileHtml = null;
-        private System.IO.FileStream _dataFileText = null;
+        //private FileStream _dataFileHex = null;
+        //private FileStream _dataFileHtml = null;
+        //private FileStream _dataFileText = null;
         private bool _lastPacketOutbound = true;
         public long DataSize { get; private set; }
+        private Regex _regexGzip;
+       private Regex _regexChunked;
+        //private Regex _regexHttp;
+        private Regex _regexHost;
+        private Regex _regexMethod;
+       //private int _packetCount;
+        public bool IsGzipped { get; private set; }
+        public bool IsChunked { get; private set; }
+        public bool IsHttp { get; private set; }
+        private bool _haveHttpHost;
+        public string HttpHost { get; private set; }
+        private List<string> _httpMethods;
+
+        private Storage _storage;
+        private string _outputPath;
         #endregion
 
         /// <summary>
@@ -63,14 +78,21 @@ namespace SessionViewer
         /// <param name="outputPath"></param>
         public PacketReconstructor(string outputPath)
         {
+            _outputPath = outputPath;
             this.Guid = System.Guid.NewGuid().ToString();
             ResetTcpReassembly();
-            _dataFileHex = new System.IO.FileStream(Path.Combine(outputPath, Guid + ".bin"), System.IO.FileMode.Create);
-            _dataFileText = new System.IO.FileStream(Path.Combine(outputPath, Guid + ".txt"), System.IO.FileMode.Create);
-            _dataFileHtml = new System.IO.FileStream(Path.Combine(outputPath, Guid + ".html"), System.IO.FileMode.Create);
 
-            byte[] html = ASCIIEncoding.ASCII.GetBytes(Global.HTML_HEADER);
-            _dataFileHtml.Write(html, 0, html.Length);
+            HttpHost = string.Empty;
+            _regexGzip = new Regex(@"^content-encoding:\s*gzip", RegexOptions.IgnoreCase | RegexOptions.Multiline);
+            _regexChunked = new Regex(@"^transfer-encoding:\s*chunked", RegexOptions.IgnoreCase | RegexOptions.Multiline);
+            //_regexHttp = new Regex(@"^.*\s.*HTTP/1.[0,1]");
+            _regexHost = new Regex(@"^Host:\s+(.*)", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Multiline);
+            _regexMethod = new Regex(@"^(GET|HEAD|POST|DELETE|OPTIONS|PUT|TRACE|TRACK)\s+.*HTTP/1\.[01]", RegexOptions.Compiled);
+
+            _httpMethods = new List<string>();
+
+            _storage = new Storage();
+            _storage.Html = Global.HTML_HEADER;
         }
 
         /// <summary>
@@ -78,28 +100,28 @@ namespace SessionViewer
         /// </summary>
         public void Dispose()
         {
-            _dataFileHex.Close();
-            _dataFileHex.Dispose();
-            _dataFileText.Close();
-            _dataFileText.Dispose();
-
-            byte[] html = ASCIIEncoding.ASCII.GetBytes(Global.HTML_FOOTER);
-            _dataFileHtml.Write(html, 0, html.Length);
-            _dataFileHtml.Close();
-            _dataFileHtml.Dispose();
+            try
+            {
+                _storage.Html += Global.HTML_FOOTER;
+                using (var file = File.Create(Path.Combine(_outputPath, Guid + ".bin")))
+                {
+                    Serializer.Serialize(file, _storage);
+                }
+            }
+            catch (Exception) {}
         }
 
         /// <summary>
         /// The main function of the class receives a tcp packet and reconstructs the stream
         /// </summary>
-        /// <param name="tcpPacket"></param>
+        /// <param name="packet"></param>
         public void ReassemblePacket(PcapDotNet.Packets.Packet packet)
         {
             try
             {
                 IpV4Datagram ip = packet.Ethernet.IpV4;
                 TcpDatagram tcp = ip.Tcp;
-                
+
                 if (tcp.HeaderLength > tcp.Length)
                 {
                     return;
@@ -110,6 +132,15 @@ namespace SessionViewer
                 if (length == 0)
                 {
                     return;
+                }
+
+                if (tcp.Http.IsRequest == true)
+                {
+                    IsHttp = true;
+                }
+                else if (tcp.Http.IsResponse == true)
+                {
+                    IsHttp = true;
                 }
 
                 if (TimestampFirstPacket == null)
@@ -132,7 +163,7 @@ namespace SessionViewer
             }
             catch (Exception ex )
             {
-                OnError(ex.Message);
+                //OnError(ex.Message);
             }
         }
 
@@ -156,17 +187,15 @@ namespace SessionViewer
         {
             try
             {
-                byte[] temp = woanware.Text.ReplaceNulls(data);
-
                 // Ignore empty packets
-                if (temp.Length == 0)
+                if (data.Length == 0)
                 {
                     return;
                 }
 
-                if (temp.Length == 1)
+                if (data.Length == 1)
                 {
-                    if (temp[0] == 0)
+                    if (data[0] == 0)
                     {
                         return;
                     }
@@ -178,19 +207,52 @@ namespace SessionViewer
                     isOutBound = true;
                 }
 
-                DataSize += temp.Length; 
+                DataSize += data.Length;
 
-                // Hex
-                _dataFileHex.Write(temp, 0, temp.Length);
+                if (_lastPacketOutbound != isOutBound)
+                {
+                    _storage.Hex.AddRange(Encoding.ASCII.GetBytes("\r\n\r\n"));
+                }
+
+                _storage.Hex.AddRange(data);
 
                 // Remove unprintable characters
                 Regex rgx = new Regex(@"[^\u0000-\u007F]");
-                string presanitised = woanware.Text.ByteArrayToString((byte[])temp, woanware.Text.EncodingType.Ascii);
+                string presanitised = woanware.Text.ByteArrayToString((byte[])data, woanware.Text.EncodingType.Ascii);
                 string sanitised = rgx.Replace(woanware.Text.ReplaceNulls(presanitised), ".");
 
-                // Text
-                byte[] textTemp = ASCIIEncoding.ASCII.GetBytes(sanitised);
-                _dataFileText.Write(textTemp, 0, textTemp.Length);
+                if (IsHttp == true)
+                {
+                    if (IsGzipped == false)
+                    {
+                        Match match = _regexGzip.Match(sanitised);
+                        IsGzipped = match.Success;
+                    }
+
+                    if (IsChunked == false)
+                    {
+                        Match match = _regexChunked.Match(sanitised);
+                        IsChunked = match.Success;
+                    }
+
+                    if (_haveHttpHost == false)
+                    {
+                        Match match = _regexHost.Match(sanitised);
+                        _haveHttpHost = match.Success;
+                        HttpHost = match.Groups[1].Value.Trim();
+                    }
+
+                    Match matchMethod = _regexMethod.Match(sanitised);
+                    if (matchMethod.Success == true)
+                    {
+                        if (_httpMethods.Contains(matchMethod.Groups[1].Value) == false)
+                        {
+                            _httpMethods.Add(matchMethod.Groups[1].Value);
+                        }
+                    }
+                }
+                
+               
 
                 // HTML
                 StringBuilder html = new StringBuilder();
@@ -205,21 +267,36 @@ namespace SessionViewer
 
                 if (_lastPacketOutbound != isOutBound)
                 {
+                    //if (sanitised.EndsWith("\r\n\r\n") == true)
+                    //{
+                    //    sanitised = sanitised.Substring(0, sanitised.Length - 4);
+                    //}
+
+                    sanitised = sanitised.Trim();
+
                     html.Append(@"<br>");
+                    _storage.Ascii += Environment.NewLine + Environment.NewLine;
                     _lastPacketOutbound = isOutBound;
                 }
 
+                 // Text
+                _storage.Ascii += sanitised;
+
                 string tempHtml = HttpUtility.HtmlEncode(sanitised);
+                //if (tempHtml.EndsWith("\r\n\r\n") == true)
+                //{
+                //    tempHtml = tempHtml.Substring(0, tempHtml.Length - 4);
+                //}
+
                 tempHtml = tempHtml.Replace("\r\n", "<br>");
                 html.Append(tempHtml);
                 html.Append(@"</font>");
 
-                byte[] htmlTemp = ASCIIEncoding.ASCII.GetBytes(html.ToString());
-                _dataFileHtml.Write(htmlTemp, 0, htmlTemp.Length);
+                _storage.Html += html.ToString();
             }
             catch (Exception ex) 
             {
-                OnError(ex.Message);
+               // OnError(ex.Message);
             }
         }
 
@@ -399,7 +476,7 @@ namespace SessionViewer
             }
             catch (Exception ex)
             {
-                OnError(ex.Message);
+                //OnError(ex.Message);
             }
         } 
 
@@ -463,7 +540,7 @@ namespace SessionViewer
             }
             catch (Exception ex) 
             {
-                OnError(ex.Message);
+                //OnError(ex.Message);
                 return false;
             }
         }
@@ -498,36 +575,50 @@ namespace SessionViewer
             }
             catch (Exception ex) 
             {
-                OnError(ex.Message);
+                //OnError(ex.Message);
             }
         }
+
+        #region Properties
+        /// <summary>
+        /// 
+        /// </summary>
+        public string HttpMethods
+        {
+            get
+            {
+                _httpMethods.Sort();
+                return string.Join(",", _httpMethods);
+            }
+        }
+        #endregion
 
         #region Event Methods
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="message"></param>
-        private void OnExclamation(string message)
-        {
-            var handler = Exclamation;
-            if (handler != null)
-            {
-                handler(message);
-            }
-        }
+        ///// <summary>
+        ///// 
+        ///// </summary>
+        ///// <param name="message"></param>
+        //private void OnExclamation(string message)
+        //{
+        //    var handler = Exclamation;
+        //    if (handler != null)
+        //    {
+        //        handler(message);
+        //    }
+        //}
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="error"></param>
-        private void OnError(string error)
-        {
-            var handler = Error;
-            if (handler != null)
-            {
-                handler(error);
-            }
-        }
+        ///// <summary>
+        ///// 
+        ///// </summary>
+        ///// <param name="error"></param>
+        //private void OnError(string error)
+        //{
+        //    var handler = Error;
+        //    if (handler != null)
+        //    {
+        //        handler(error);
+        //    }
+        //}
         #endregion
     }
 }

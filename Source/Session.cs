@@ -13,6 +13,9 @@ namespace SessionViewer
         #region Member Variables
         public string Guid { get; set; }
         public string HttpHost { get; set; }
+        public string HttpMethods { get; set; }
+        public bool IsGzipped { get; set; }
+        public bool IsChunked { get; set; }
         public long Id { get; set; }
         public long DataSize { get; set; }
         public DateTime? TimestampFirstPacket { get; set; }

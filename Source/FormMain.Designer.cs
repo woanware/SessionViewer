@@ -36,6 +36,8 @@
             this.menuFileOpen = new System.Windows.Forms.ToolStripMenuItem();
             this.menuFileSep1 = new System.Windows.Forms.ToolStripSeparator();
             this.menuFileExit = new System.Windows.Forms.ToolStripMenuItem();
+            this.menuTools = new System.Windows.Forms.ToolStripMenuItem();
+            this.menuToolsOptions = new System.Windows.Forms.ToolStripMenuItem();
             this.menuHelp = new System.Windows.Forms.ToolStripMenuItem();
             this.menuHelpHelp = new System.Windows.Forms.ToolStripMenuItem();
             this.menuHelpSep1 = new System.Windows.Forms.ToolStripSeparator();
@@ -52,15 +54,10 @@
             this.olvcDestinationIp = ((BrightIdeasSoftware.OLVColumn)(new BrightIdeasSoftware.OLVColumn()));
             this.olvcDestinationPort = ((BrightIdeasSoftware.OLVColumn)(new BrightIdeasSoftware.OLVColumn()));
             this.olvcHttpHost = ((BrightIdeasSoftware.OLVColumn)(new BrightIdeasSoftware.OLVColumn()));
+            this.olvcHttpMethods = ((BrightIdeasSoftware.OLVColumn)(new BrightIdeasSoftware.OLVColumn()));
             this.olvcSize = ((BrightIdeasSoftware.OLVColumn)(new BrightIdeasSoftware.OLVColumn()));
             this.olvcTimestampFirstPacket = ((BrightIdeasSoftware.OLVColumn)(new BrightIdeasSoftware.OLVColumn()));
             this.olvcTimestampLastPacket = ((BrightIdeasSoftware.OLVColumn)(new BrightIdeasSoftware.OLVColumn()));
-            this.tabControl = new System.Windows.Forms.TabControl();
-            this.tabPageAscii = new System.Windows.Forms.TabPage();
-            this.txtSession = new System.Windows.Forms.RichTextBox();
-            this.tabPageHex = new System.Windows.Forms.TabPage();
-            this.hexBox = new Be.Windows.Forms.HexBox();
-            this.tabPageColourised = new System.Windows.Forms.TabPage();
             this.context = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.contextCopy = new System.Windows.Forms.ToolStripMenuItem();
             this.contextCopySourceIp = new System.Windows.Forms.ToolStripMenuItem();
@@ -70,6 +67,20 @@
             this.contextCopySize = new System.Windows.Forms.ToolStripMenuItem();
             this.contextCopyTimestampFirstPacket = new System.Windows.Forms.ToolStripMenuItem();
             this.contextCopyTimestampLastPacket = new System.Windows.Forms.ToolStripMenuItem();
+            this.contextExport = new System.Windows.Forms.ToolStripMenuItem();
+            this.contextExportUniqueSourceIp = new System.Windows.Forms.ToolStripMenuItem();
+            this.contextExportDestinationIp = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripMenuItem1 = new System.Windows.Forms.ToolStripSeparator();
+            this.contextExportHex = new System.Windows.Forms.ToolStripMenuItem();
+            this.contextSep1 = new System.Windows.Forms.ToolStripSeparator();
+            this.contextDecode = new System.Windows.Forms.ToolStripMenuItem();
+            this.contextDecodeGzip = new System.Windows.Forms.ToolStripMenuItem();
+            this.tabControl = new System.Windows.Forms.TabControl();
+            this.tabPageAscii = new System.Windows.Forms.TabPage();
+            this.txtSession = new System.Windows.Forms.RichTextBox();
+            this.tabPageHex = new System.Windows.Forms.TabPage();
+            this.hexBox = new Be.Windows.Forms.HexBox();
+            this.tabPageColourised = new System.Windows.Forms.TabPage();
             this.webControl = new System.Windows.Forms.WebBrowser();
             this.menu.SuspendLayout();
             this.toolStrip.SuspendLayout();
@@ -79,17 +90,18 @@
             this.splitContainer1.Panel2.SuspendLayout();
             this.splitContainer1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.listSession)).BeginInit();
+            this.context.SuspendLayout();
             this.tabControl.SuspendLayout();
             this.tabPageAscii.SuspendLayout();
             this.tabPageHex.SuspendLayout();
             this.tabPageColourised.SuspendLayout();
-            this.context.SuspendLayout();
             this.SuspendLayout();
             // 
             // menu
             // 
             this.menu.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.menuFile,
+            this.menuTools,
             this.menuHelp});
             this.menu.Location = new System.Drawing.Point(0, 0);
             this.menu.Name = "menu";
@@ -135,6 +147,21 @@
             this.menuFileExit.Size = new System.Drawing.Size(110, 22);
             this.menuFileExit.Text = "Exit";
             this.menuFileExit.Click += new System.EventHandler(this.menuFileExit_Click);
+            // 
+            // menuTools
+            // 
+            this.menuTools.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.menuToolsOptions});
+            this.menuTools.Name = "menuTools";
+            this.menuTools.Size = new System.Drawing.Size(48, 20);
+            this.menuTools.Text = "Tools";
+            // 
+            // menuToolsOptions
+            // 
+            this.menuToolsOptions.Name = "menuToolsOptions";
+            this.menuToolsOptions.Size = new System.Drawing.Size(116, 22);
+            this.menuToolsOptions.Text = "Options";
+            this.menuToolsOptions.Click += new System.EventHandler(this.menuToolsOptions_Click);
             // 
             // menuHelp
             // 
@@ -238,6 +265,7 @@
             this.listSession.AllColumns.Add(this.olvcDestinationIp);
             this.listSession.AllColumns.Add(this.olvcDestinationPort);
             this.listSession.AllColumns.Add(this.olvcHttpHost);
+            this.listSession.AllColumns.Add(this.olvcHttpMethods);
             this.listSession.AllColumns.Add(this.olvcSize);
             this.listSession.AllColumns.Add(this.olvcTimestampFirstPacket);
             this.listSession.AllColumns.Add(this.olvcTimestampLastPacket);
@@ -247,9 +275,11 @@
             this.olvcDestinationIp,
             this.olvcDestinationPort,
             this.olvcHttpHost,
+            this.olvcHttpMethods,
             this.olvcSize,
             this.olvcTimestampFirstPacket,
             this.olvcTimestampLastPacket});
+            this.listSession.ContextMenuStrip = this.context;
             this.listSession.Dock = System.Windows.Forms.DockStyle.Fill;
             this.listSession.FullRowSelect = true;
             this.listSession.HideSelection = false;
@@ -295,6 +325,12 @@
             this.olvcHttpHost.CellPadding = null;
             this.olvcHttpHost.Text = "Host";
             // 
+            // olvcHttpMethods
+            // 
+            this.olvcHttpMethods.AspectName = "HttpMethods";
+            this.olvcHttpMethods.CellPadding = null;
+            this.olvcHttpMethods.Text = "Methods";
+            // 
             // olvcSize
             // 
             this.olvcSize.AspectName = "DataSize";
@@ -313,6 +349,138 @@
             this.olvcTimestampLastPacket.AspectName = "TimestampLastPacket";
             this.olvcTimestampLastPacket.CellPadding = null;
             this.olvcTimestampLastPacket.Text = "Last Packet";
+            // 
+            // context
+            // 
+            this.context.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.contextCopy,
+            this.contextExport,
+            this.contextSep1,
+            this.contextDecode});
+            this.context.Name = "context";
+            this.context.RenderMode = System.Windows.Forms.ToolStripRenderMode.System;
+            this.context.Size = new System.Drawing.Size(153, 98);
+            this.context.Opening += new System.ComponentModel.CancelEventHandler(this.context_Opening);
+            // 
+            // contextCopy
+            // 
+            this.contextCopy.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.contextCopySourceIp,
+            this.contextCopySourcePort,
+            this.contextCopyDestinationIp,
+            this.contextCopyDestinationPort,
+            this.contextCopySize,
+            this.contextCopyTimestampFirstPacket,
+            this.contextCopyTimestampLastPacket});
+            this.contextCopy.Name = "contextCopy";
+            this.contextCopy.Size = new System.Drawing.Size(152, 22);
+            this.contextCopy.Text = "Copy";
+            // 
+            // contextCopySourceIp
+            // 
+            this.contextCopySourceIp.Name = "contextCopySourceIp";
+            this.contextCopySourceIp.Size = new System.Drawing.Size(197, 22);
+            this.contextCopySourceIp.Text = "Source IP";
+            this.contextCopySourceIp.Click += new System.EventHandler(this.contextCopySourceIp_Click);
+            // 
+            // contextCopySourcePort
+            // 
+            this.contextCopySourcePort.Name = "contextCopySourcePort";
+            this.contextCopySourcePort.Size = new System.Drawing.Size(197, 22);
+            this.contextCopySourcePort.Text = "Source Port";
+            this.contextCopySourcePort.Click += new System.EventHandler(this.contextCopySourcePort_Click);
+            // 
+            // contextCopyDestinationIp
+            // 
+            this.contextCopyDestinationIp.Name = "contextCopyDestinationIp";
+            this.contextCopyDestinationIp.Size = new System.Drawing.Size(197, 22);
+            this.contextCopyDestinationIp.Text = "Destination IP";
+            this.contextCopyDestinationIp.Click += new System.EventHandler(this.contextCopyDestinationIp_Click);
+            // 
+            // contextCopyDestinationPort
+            // 
+            this.contextCopyDestinationPort.Name = "contextCopyDestinationPort";
+            this.contextCopyDestinationPort.Size = new System.Drawing.Size(197, 22);
+            this.contextCopyDestinationPort.Text = "Destination Port";
+            this.contextCopyDestinationPort.Click += new System.EventHandler(this.contextCopyDestinationPort_Click);
+            // 
+            // contextCopySize
+            // 
+            this.contextCopySize.Name = "contextCopySize";
+            this.contextCopySize.Size = new System.Drawing.Size(197, 22);
+            this.contextCopySize.Text = "Size";
+            this.contextCopySize.Click += new System.EventHandler(this.contextCopySize_Click);
+            // 
+            // contextCopyTimestampFirstPacket
+            // 
+            this.contextCopyTimestampFirstPacket.Name = "contextCopyTimestampFirstPacket";
+            this.contextCopyTimestampFirstPacket.Size = new System.Drawing.Size(197, 22);
+            this.contextCopyTimestampFirstPacket.Text = "First Packet Timestamp";
+            this.contextCopyTimestampFirstPacket.Click += new System.EventHandler(this.contextCopyTimestampFirstPacket_Click);
+            // 
+            // contextCopyTimestampLastPacket
+            // 
+            this.contextCopyTimestampLastPacket.Name = "contextCopyTimestampLastPacket";
+            this.contextCopyTimestampLastPacket.Size = new System.Drawing.Size(197, 22);
+            this.contextCopyTimestampLastPacket.Text = "Last Packet Timestamp";
+            this.contextCopyTimestampLastPacket.Click += new System.EventHandler(this.contextCopyTimestampLastPacket_Click);
+            // 
+            // contextExport
+            // 
+            this.contextExport.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.contextExportUniqueSourceIp,
+            this.contextExportDestinationIp,
+            this.toolStripMenuItem1,
+            this.contextExportHex});
+            this.contextExport.Name = "contextExport";
+            this.contextExport.Size = new System.Drawing.Size(152, 22);
+            this.contextExport.Text = "Export";
+            // 
+            // contextExportUniqueSourceIp
+            // 
+            this.contextExportUniqueSourceIp.Name = "contextExportUniqueSourceIp";
+            this.contextExportUniqueSourceIp.Size = new System.Drawing.Size(188, 22);
+            this.contextExportUniqueSourceIp.Text = "Unique Source IP";
+            this.contextExportUniqueSourceIp.Click += new System.EventHandler(this.contextExportUniqueSourceIp_Click);
+            // 
+            // contextExportDestinationIp
+            // 
+            this.contextExportDestinationIp.Name = "contextExportDestinationIp";
+            this.contextExportDestinationIp.Size = new System.Drawing.Size(188, 22);
+            this.contextExportDestinationIp.Text = "Unique Destination IP";
+            this.contextExportDestinationIp.Click += new System.EventHandler(this.contextExportDestinationIp_Click);
+            // 
+            // toolStripMenuItem1
+            // 
+            this.toolStripMenuItem1.Name = "toolStripMenuItem1";
+            this.toolStripMenuItem1.Size = new System.Drawing.Size(185, 6);
+            // 
+            // contextExportHex
+            // 
+            this.contextExportHex.Name = "contextExportHex";
+            this.contextExportHex.Size = new System.Drawing.Size(188, 22);
+            this.contextExportHex.Text = "Hex";
+            this.contextExportHex.Click += new System.EventHandler(this.contextExportHex_Click);
+            // 
+            // contextSep1
+            // 
+            this.contextSep1.Name = "contextSep1";
+            this.contextSep1.Size = new System.Drawing.Size(149, 6);
+            // 
+            // contextDecode
+            // 
+            this.contextDecode.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.contextDecodeGzip});
+            this.contextDecode.Name = "contextDecode";
+            this.contextDecode.Size = new System.Drawing.Size(152, 22);
+            this.contextDecode.Text = "Decode";
+            // 
+            // contextDecodeGzip
+            // 
+            this.contextDecodeGzip.Name = "contextDecodeGzip";
+            this.contextDecodeGzip.Size = new System.Drawing.Size(96, 22);
+            this.contextDecodeGzip.Text = "gzip";
+            this.contextDecodeGzip.Click += new System.EventHandler(this.contextDecodeGzip_Click);
             // 
             // tabControl
             // 
@@ -377,84 +545,13 @@
             // tabPageColourised
             // 
             this.tabPageColourised.Controls.Add(this.webControl);
-            this.tabPageColourised.Location = new System.Drawing.Point(4, 24);
+            this.tabPageColourised.Location = new System.Drawing.Point(4, 22);
             this.tabPageColourised.Name = "tabPageColourised";
             this.tabPageColourised.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPageColourised.Size = new System.Drawing.Size(262, 262);
+            this.tabPageColourised.Size = new System.Drawing.Size(262, 264);
             this.tabPageColourised.TabIndex = 2;
             this.tabPageColourised.Text = "Colourised";
             this.tabPageColourised.UseVisualStyleBackColor = true;
-            // 
-            // context
-            // 
-            this.context.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.contextCopy});
-            this.context.Name = "context";
-            this.context.RenderMode = System.Windows.Forms.ToolStripRenderMode.System;
-            this.context.Size = new System.Drawing.Size(103, 26);
-            // 
-            // contextCopy
-            // 
-            this.contextCopy.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.contextCopySourceIp,
-            this.contextCopySourcePort,
-            this.contextCopyDestinationIp,
-            this.contextCopyDestinationPort,
-            this.contextCopySize,
-            this.contextCopyTimestampFirstPacket,
-            this.contextCopyTimestampLastPacket});
-            this.contextCopy.Name = "contextCopy";
-            this.contextCopy.Size = new System.Drawing.Size(102, 22);
-            this.contextCopy.Text = "Copy";
-            // 
-            // contextCopySourceIp
-            // 
-            this.contextCopySourceIp.Name = "contextCopySourceIp";
-            this.contextCopySourceIp.Size = new System.Drawing.Size(197, 22);
-            this.contextCopySourceIp.Text = "Source IP";
-            this.contextCopySourceIp.Click += new System.EventHandler(this.contextCopySourceIp_Click);
-            // 
-            // contextCopySourcePort
-            // 
-            this.contextCopySourcePort.Name = "contextCopySourcePort";
-            this.contextCopySourcePort.Size = new System.Drawing.Size(197, 22);
-            this.contextCopySourcePort.Text = "Source Port";
-            this.contextCopySourcePort.Click += new System.EventHandler(this.contextCopySourcePort_Click);
-            // 
-            // contextCopyDestinationIp
-            // 
-            this.contextCopyDestinationIp.Name = "contextCopyDestinationIp";
-            this.contextCopyDestinationIp.Size = new System.Drawing.Size(197, 22);
-            this.contextCopyDestinationIp.Text = "Destination IP";
-            this.contextCopyDestinationIp.Click += new System.EventHandler(this.contextCopyDestinationIp_Click);
-            // 
-            // contextCopyDestinationPort
-            // 
-            this.contextCopyDestinationPort.Name = "contextCopyDestinationPort";
-            this.contextCopyDestinationPort.Size = new System.Drawing.Size(197, 22);
-            this.contextCopyDestinationPort.Text = "Destination Port";
-            this.contextCopyDestinationPort.Click += new System.EventHandler(this.contextCopyDestinationPort_Click);
-            // 
-            // contextCopySize
-            // 
-            this.contextCopySize.Name = "contextCopySize";
-            this.contextCopySize.Size = new System.Drawing.Size(197, 22);
-            this.contextCopySize.Text = "Size";
-            this.contextCopySize.Click += new System.EventHandler(this.contextCopySize_Click);
-            // 
-            // contextCopyTimestampFirstPacket
-            // 
-            this.contextCopyTimestampFirstPacket.Name = "contextCopyTimestampFirstPacket";
-            this.contextCopyTimestampFirstPacket.Size = new System.Drawing.Size(197, 22);
-            this.contextCopyTimestampFirstPacket.Text = "First Packet Timestamp";
-            this.contextCopyTimestampFirstPacket.Click += new System.EventHandler(this.contextCopyTimestampFirstPacket_Click);
-            // 
-            // contextCopyTimestampLastPacket
-            // 
-            this.contextCopyTimestampLastPacket.Name = "contextCopyTimestampLastPacket";
-            this.contextCopyTimestampLastPacket.Size = new System.Drawing.Size(197, 22);
-            this.contextCopyTimestampLastPacket.Text = "Last Packet Timestamp";
-            this.contextCopyTimestampLastPacket.Click += new System.EventHandler(this.contextCopyTimestampLastPacket_Click);
             // 
             // webControl
             // 
@@ -464,7 +561,7 @@
             this.webControl.MinimumSize = new System.Drawing.Size(20, 20);
             this.webControl.Name = "webControl";
             this.webControl.ScriptErrorsSuppressed = true;
-            this.webControl.Size = new System.Drawing.Size(256, 256);
+            this.webControl.Size = new System.Drawing.Size(256, 258);
             this.webControl.TabIndex = 1;
             this.webControl.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.webControl_PreviewKeyDown);
             // 
@@ -484,6 +581,7 @@
             this.Name = "FormMain";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "SessionViewer";
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.FormMain_FormClosing);
             this.Load += new System.EventHandler(this.FormMain_Load);
             this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.FormMain_KeyDown);
             this.menu.ResumeLayout(false);
@@ -497,11 +595,11 @@
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).EndInit();
             this.splitContainer1.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.listSession)).EndInit();
+            this.context.ResumeLayout(false);
             this.tabControl.ResumeLayout(false);
             this.tabPageAscii.ResumeLayout(false);
             this.tabPageHex.ResumeLayout(false);
             this.tabPageColourised.ResumeLayout(false);
-            this.context.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -550,6 +648,17 @@
         private System.Windows.Forms.ToolStripButton toolBtnOpen;
         private BrightIdeasSoftware.OLVColumn olvcHttpHost;
         private System.Windows.Forms.WebBrowser webControl;
+        private System.Windows.Forms.ToolStripMenuItem contextExport;
+        private System.Windows.Forms.ToolStripMenuItem contextExportUniqueSourceIp;
+        private System.Windows.Forms.ToolStripMenuItem contextExportDestinationIp;
+        private BrightIdeasSoftware.OLVColumn olvcHttpMethods;
+        private System.Windows.Forms.ToolStripSeparator contextSep1;
+        private System.Windows.Forms.ToolStripMenuItem contextDecode;
+        private System.Windows.Forms.ToolStripMenuItem contextDecodeGzip;
+        private System.Windows.Forms.ToolStripMenuItem menuTools;
+        private System.Windows.Forms.ToolStripMenuItem menuToolsOptions;
+        private System.Windows.Forms.ToolStripSeparator toolStripMenuItem1;
+        private System.Windows.Forms.ToolStripMenuItem contextExportHex;
     }
 }
 

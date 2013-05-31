@@ -56,6 +56,9 @@
     <Reference Include="Be.Windows.Forms.HexBox">
       <HintPath>..\Dependencies\HexBox\Be.Windows.Forms.HexBox.dll</HintPath>
     </Reference>
+    <Reference Include="CsvHelper">
+      <HintPath>..\Dependencies\CsvHelper\CsvHelper.dll</HintPath>
+    </Reference>
     <Reference Include="Network, Version=1.0.1.0, Culture=neutral, processorArchitecture=x86">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\..\Libraries\Network\Source\bin\Release\Network.dll</HintPath>
@@ -74,6 +77,9 @@
     </Reference>
     <Reference Include="PcapDotNet.Packets">
       <HintPath>..\Dependencies\PcapDotNet\PcapDotNet.Packets.dll</HintPath>
+    </Reference>
+    <Reference Include="protobuf-net">
+      <HintPath>..\Dependencies\protobuf-net\protobuf-net.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Configuration" />
@@ -120,12 +126,15 @@
     <Compile Include="FormOptions.Designer.cs">
       <DependentUpon>FormOptions.cs</DependentUpon>
     </Compile>
+    <Compile Include="Functions.cs" />
     <Compile Include="Global.cs" />
     <Compile Include="PacketReconstructor.cs" />
     <Compile Include="Parser.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Session.cs" />
+    <Compile Include="Settings.cs" />
+    <Compile Include="Storage.cs" />
     <EmbeddedResource Include="FormAbout.resx">
       <DependentUpon>FormAbout.cs</DependentUpon>
     </EmbeddedResource>
