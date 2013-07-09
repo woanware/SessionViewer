@@ -45,14 +45,23 @@
             this.toolStrip = new System.Windows.Forms.ToolStrip();
             this.toolBtnImport = new System.Windows.Forms.ToolStripButton();
             this.toolBtnOpen = new System.Windows.Forms.ToolStripButton();
+            this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
+            this.toolBtnHttp = new System.Windows.Forms.ToolStripButton();
+            this.toolStripSeparator2 = new System.Windows.Forms.ToolStripSeparator();
+            this.toolStripLabel1 = new System.Windows.Forms.ToolStripLabel();
+            this.cboMaxSession = new System.Windows.Forms.ToolStripComboBox();
+            this.toolStripSeparator3 = new System.Windows.Forms.ToolStripSeparator();
+            this.toolBtnRemoteOnly = new System.Windows.Forms.ToolStripButton();
             this.statusStrip = new System.Windows.Forms.StatusStrip();
             this.statusLabel = new System.Windows.Forms.ToolStripStatusLabel();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.listSession = new BrightIdeasSoftware.FastObjectListView();
             this.olvcSourceIp = ((BrightIdeasSoftware.OLVColumn)(new BrightIdeasSoftware.OLVColumn()));
             this.olvcSourcePort = ((BrightIdeasSoftware.OLVColumn)(new BrightIdeasSoftware.OLVColumn()));
+            this.olvcSourceCountry = ((BrightIdeasSoftware.OLVColumn)(new BrightIdeasSoftware.OLVColumn()));
             this.olvcDestinationIp = ((BrightIdeasSoftware.OLVColumn)(new BrightIdeasSoftware.OLVColumn()));
             this.olvcDestinationPort = ((BrightIdeasSoftware.OLVColumn)(new BrightIdeasSoftware.OLVColumn()));
+            this.olvcDestinationCountry = ((BrightIdeasSoftware.OLVColumn)(new BrightIdeasSoftware.OLVColumn()));
             this.olvcHttpHost = ((BrightIdeasSoftware.OLVColumn)(new BrightIdeasSoftware.OLVColumn()));
             this.olvcHttpMethods = ((BrightIdeasSoftware.OLVColumn)(new BrightIdeasSoftware.OLVColumn()));
             this.olvcSize = ((BrightIdeasSoftware.OLVColumn)(new BrightIdeasSoftware.OLVColumn()));
@@ -70,8 +79,6 @@
             this.contextExport = new System.Windows.Forms.ToolStripMenuItem();
             this.contextExportUniqueSourceIp = new System.Windows.Forms.ToolStripMenuItem();
             this.contextExportDestinationIp = new System.Windows.Forms.ToolStripMenuItem();
-            this.toolStripMenuItem1 = new System.Windows.Forms.ToolStripSeparator();
-            this.contextExportHex = new System.Windows.Forms.ToolStripMenuItem();
             this.contextSep1 = new System.Windows.Forms.ToolStripSeparator();
             this.contextDecode = new System.Windows.Forms.ToolStripMenuItem();
             this.contextDecodeGzip = new System.Windows.Forms.ToolStripMenuItem();
@@ -82,6 +89,8 @@
             this.hexBox = new Be.Windows.Forms.HexBox();
             this.tabPageColourised = new System.Windows.Forms.TabPage();
             this.webControl = new System.Windows.Forms.WebBrowser();
+            this.contextCopySourceCountry = new System.Windows.Forms.ToolStripMenuItem();
+            this.contextCopyDestinationCountry = new System.Windows.Forms.ToolStripMenuItem();
             this.menu.SuspendLayout();
             this.toolStrip.SuspendLayout();
             this.statusStrip.SuspendLayout();
@@ -196,7 +205,14 @@
             // 
             this.toolStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.toolBtnImport,
-            this.toolBtnOpen});
+            this.toolBtnOpen,
+            this.toolStripSeparator1,
+            this.toolBtnHttp,
+            this.toolStripSeparator2,
+            this.toolStripLabel1,
+            this.cboMaxSession,
+            this.toolStripSeparator3,
+            this.toolBtnRemoteOnly});
             this.toolStrip.Location = new System.Drawing.Point(0, 24);
             this.toolStrip.Name = "toolStrip";
             this.toolStrip.RenderMode = System.Windows.Forms.ToolStripRenderMode.System;
@@ -223,6 +239,63 @@
             this.toolBtnOpen.Size = new System.Drawing.Size(23, 22);
             this.toolBtnOpen.ToolTipText = "Open";
             this.toolBtnOpen.Click += new System.EventHandler(this.toolBtnOpen_Click);
+            // 
+            // toolStripSeparator1
+            // 
+            this.toolStripSeparator1.Name = "toolStripSeparator1";
+            this.toolStripSeparator1.Size = new System.Drawing.Size(6, 25);
+            // 
+            // toolBtnHttp
+            // 
+            this.toolBtnHttp.Checked = true;
+            this.toolBtnHttp.CheckOnClick = true;
+            this.toolBtnHttp.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.toolBtnHttp.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.toolBtnHttp.Image = ((System.Drawing.Image)(resources.GetObject("toolBtnHttp.Image")));
+            this.toolBtnHttp.ImageTransparentColor = System.Drawing.Color.Magenta;
+            this.toolBtnHttp.Name = "toolBtnHttp";
+            this.toolBtnHttp.Size = new System.Drawing.Size(23, 22);
+            this.toolBtnHttp.Text = "HTTP";
+            // 
+            // toolStripSeparator2
+            // 
+            this.toolStripSeparator2.Name = "toolStripSeparator2";
+            this.toolStripSeparator2.Size = new System.Drawing.Size(6, 25);
+            // 
+            // toolStripLabel1
+            // 
+            this.toolStripLabel1.Name = "toolStripLabel1";
+            this.toolStripLabel1.Size = new System.Drawing.Size(74, 22);
+            this.toolStripLabel1.Text = "Max. Session";
+            // 
+            // cboMaxSession
+            // 
+            this.cboMaxSession.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cboMaxSession.Items.AddRange(new object[] {
+            "None",
+            "1 MB",
+            "2 MB",
+            "3 MB",
+            "4 MB",
+            "5 MB",
+            "10 MB",
+            "15 MB"});
+            this.cboMaxSession.Name = "cboMaxSession";
+            this.cboMaxSession.Size = new System.Drawing.Size(121, 25);
+            // 
+            // toolStripSeparator3
+            // 
+            this.toolStripSeparator3.Name = "toolStripSeparator3";
+            this.toolStripSeparator3.Size = new System.Drawing.Size(6, 25);
+            // 
+            // toolBtnRemoteOnly
+            // 
+            this.toolBtnRemoteOnly.CheckOnClick = true;
+            this.toolBtnRemoteOnly.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.toolBtnRemoteOnly.Image = ((System.Drawing.Image)(resources.GetObject("toolBtnRemoteOnly.Image")));
+            this.toolBtnRemoteOnly.ImageTransparentColor = System.Drawing.Color.Magenta;
+            this.toolBtnRemoteOnly.Name = "toolBtnRemoteOnly";
+            this.toolBtnRemoteOnly.Size = new System.Drawing.Size(23, 22);
             // 
             // statusStrip
             // 
@@ -262,8 +335,10 @@
             // 
             this.listSession.AllColumns.Add(this.olvcSourceIp);
             this.listSession.AllColumns.Add(this.olvcSourcePort);
+            this.listSession.AllColumns.Add(this.olvcSourceCountry);
             this.listSession.AllColumns.Add(this.olvcDestinationIp);
             this.listSession.AllColumns.Add(this.olvcDestinationPort);
+            this.listSession.AllColumns.Add(this.olvcDestinationCountry);
             this.listSession.AllColumns.Add(this.olvcHttpHost);
             this.listSession.AllColumns.Add(this.olvcHttpMethods);
             this.listSession.AllColumns.Add(this.olvcSize);
@@ -272,8 +347,10 @@
             this.listSession.Columns.AddRange(new System.Windows.Forms.ColumnHeader[] {
             this.olvcSourceIp,
             this.olvcSourcePort,
+            this.olvcSourceCountry,
             this.olvcDestinationIp,
             this.olvcDestinationPort,
+            this.olvcDestinationCountry,
             this.olvcHttpHost,
             this.olvcHttpMethods,
             this.olvcSize,
@@ -307,6 +384,12 @@
             this.olvcSourcePort.CellPadding = null;
             this.olvcSourcePort.Text = "Source Port";
             // 
+            // olvcSourceCountry
+            // 
+            this.olvcSourceCountry.AspectName = "SourceCountry";
+            this.olvcSourceCountry.CellPadding = null;
+            this.olvcSourceCountry.Text = "Source Country";
+            // 
             // olvcDestinationIp
             // 
             this.olvcDestinationIp.AspectName = "DstIpText";
@@ -318,6 +401,12 @@
             this.olvcDestinationPort.AspectName = "DestinationPort";
             this.olvcDestinationPort.CellPadding = null;
             this.olvcDestinationPort.Text = "Destination Port";
+            // 
+            // olvcDestinationCountry
+            // 
+            this.olvcDestinationCountry.AspectName = "DestinationCountry";
+            this.olvcDestinationCountry.CellPadding = null;
+            this.olvcDestinationCountry.Text = "Destination Country";
             // 
             // olvcHttpHost
             // 
@@ -367,8 +456,10 @@
             this.contextCopy.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.contextCopySourceIp,
             this.contextCopySourcePort,
+            this.contextCopySourceCountry,
             this.contextCopyDestinationIp,
             this.contextCopyDestinationPort,
+            this.contextCopyDestinationCountry,
             this.contextCopySize,
             this.contextCopyTimestampFirstPacket,
             this.contextCopyTimestampLastPacket});
@@ -429,9 +520,7 @@
             // 
             this.contextExport.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.contextExportUniqueSourceIp,
-            this.contextExportDestinationIp,
-            this.toolStripMenuItem1,
-            this.contextExportHex});
+            this.contextExportDestinationIp});
             this.contextExport.Name = "contextExport";
             this.contextExport.Size = new System.Drawing.Size(152, 22);
             this.contextExport.Text = "Export";
@@ -449,18 +538,6 @@
             this.contextExportDestinationIp.Size = new System.Drawing.Size(188, 22);
             this.contextExportDestinationIp.Text = "Unique Destination IP";
             this.contextExportDestinationIp.Click += new System.EventHandler(this.contextExportDestinationIp_Click);
-            // 
-            // toolStripMenuItem1
-            // 
-            this.toolStripMenuItem1.Name = "toolStripMenuItem1";
-            this.toolStripMenuItem1.Size = new System.Drawing.Size(185, 6);
-            // 
-            // contextExportHex
-            // 
-            this.contextExportHex.Name = "contextExportHex";
-            this.contextExportHex.Size = new System.Drawing.Size(188, 22);
-            this.contextExportHex.Text = "Hex";
-            this.contextExportHex.Click += new System.EventHandler(this.contextExportHex_Click);
             // 
             // contextSep1
             // 
@@ -565,6 +642,20 @@
             this.webControl.TabIndex = 1;
             this.webControl.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.webControl_PreviewKeyDown);
             // 
+            // contextCopySourceCountry
+            // 
+            this.contextCopySourceCountry.Name = "contextCopySourceCountry";
+            this.contextCopySourceCountry.Size = new System.Drawing.Size(197, 22);
+            this.contextCopySourceCountry.Text = "Source Country";
+            this.contextCopySourceCountry.Click += new System.EventHandler(this.contextCopySourceCountry_Click);
+            // 
+            // contextCopyDestinationCountry
+            // 
+            this.contextCopyDestinationCountry.Name = "contextCopyDestinationCountry";
+            this.contextCopyDestinationCountry.Size = new System.Drawing.Size(197, 22);
+            this.contextCopyDestinationCountry.Text = "Destination Country";
+            this.contextCopyDestinationCountry.Click += new System.EventHandler(this.contextCopyDestinationCountry_Click);
+            // 
             // FormMain
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
@@ -657,8 +748,17 @@
         private System.Windows.Forms.ToolStripMenuItem contextDecodeGzip;
         private System.Windows.Forms.ToolStripMenuItem menuTools;
         private System.Windows.Forms.ToolStripMenuItem menuToolsOptions;
-        private System.Windows.Forms.ToolStripSeparator toolStripMenuItem1;
-        private System.Windows.Forms.ToolStripMenuItem contextExportHex;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparator1;
+        private System.Windows.Forms.ToolStripButton toolBtnHttp;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparator2;
+        private System.Windows.Forms.ToolStripLabel toolStripLabel1;
+        private System.Windows.Forms.ToolStripComboBox cboMaxSession;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparator3;
+        private System.Windows.Forms.ToolStripButton toolBtnRemoteOnly;
+        private BrightIdeasSoftware.OLVColumn olvcSourceCountry;
+        private BrightIdeasSoftware.OLVColumn olvcDestinationCountry;
+        private System.Windows.Forms.ToolStripMenuItem contextCopySourceCountry;
+        private System.Windows.Forms.ToolStripMenuItem contextCopyDestinationCountry;
     }
 }
 

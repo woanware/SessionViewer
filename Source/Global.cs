@@ -28,7 +28,9 @@
             DestinationPort = 3,
             Size = 4,
             TimestampFirstPacket = 5,
-            TimestampLastPacket = 6
+            TimestampLastPacket = 6,
+            SourceCountry = 7,
+            DestinationCountry = 8
         }
         #endregion
     }

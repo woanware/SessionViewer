@@ -1,20 +1,17 @@
-﻿using System;
+﻿using PcapDotNet.Core;
+using PcapDotNet.Packets.IpV4;
+using PcapDotNet.Packets.Transport;
+using System;
 using System.Collections.Generic;
 using System.Data.Common;
 using System.IO;
-using System.Threading.Tasks;
-using PcapDotNet.Core;
-using PcapDotNet.Packets.IpV4;
-using PcapDotNet.Packets.Transport;
-using woanware;
+using System.IO.Compression;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
-using System.Text;
-using System.IO.Compression;
-using System.Web;
-using System.Diagnostics;
-using ProtoBuf;
+using woanware;
+using woanware.Network;
 
 namespace SessionViewer
 {
@@ -35,6 +32,7 @@ namespace SessionViewer
         private Dictionary<Connection, PacketReconstructor> _dictionary;
         private string _outputPath = string.Empty;
         private DateTime _timestamp = DateTime.MinValue;
+        private LookupService _ls; 
 
         /// <summary>
         /// Time in the PCAP to wait before seeing what sessions can be written to the db
@@ -42,7 +40,10 @@ namespace SessionViewer
         public int BufferInterval { get; set; }
         public int SessionInterval { get; set; }
         public bool AutoGzip { get; set; }
+        public bool AutoHttp { get; set; }
+        public bool IgnoreLocal { get; set; }
         private long _packetCount;
+        private long _maxSize;
         private Regex _regexHost;
         private Regex _regexMethod;
         private Regex _regexHttpResponse;
@@ -58,10 +59,12 @@ namespace SessionViewer
         /// </summary>
         public Parser()
         {
-            _regexHost = new Regex(@"^Host:\s+(.*)", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
+            AutoGzip = false;
+            _ls = new LookupService("GeoIP.dat", LookupService.GEOIP_MEMORY_CACHE);
+
+            _regexHost = new Regex(@"^Host:\s*(.*)", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
             _regexMethod = new Regex(@"^()\s+.HTTP/1\.[0,1]", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
             _regexHttpResponse = new Regex(@"^HTTP/1\.[0,1]\s+\d*\s\w*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-            //_regexHttpRequest = new Regex(@"^.*\s.*HTTP/1.[0,1]", RegexOptions.Compiled);
             _regexHttpRequest = new Regex(@"^(GET|HEAD|POST|DELETE|OPTIONS|PUT|TRACE|TRACK)\s+.*HTTP/1\.[01]", RegexOptions.Compiled);
             _regexUnprintable = new Regex(@"[^\u0000-\u007F]", RegexOptions.Compiled);
             _regexHttpContentLength = new Regex(@"^content-length:\s*(\d*)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -75,15 +78,17 @@ namespace SessionViewer
         /// </summary>
         /// <param name="pcapPath"></param>
         /// <param name="outputPath"></param>
-        public void Parse(string pcapPath, string outputPath)
+        /// <param name="maxSize"></param>
+        public void Parse(string pcapPath, 
+                          string outputPath,
+                          long maxSize)
         {
             (new Thread(() =>
             {
                 try
                 {
-                    //Stopwatch sw = new Stopwatch();
-                    //sw.Start();
                     _outputPath = outputPath;
+                    _maxSize = maxSize;
 
                     // Check for previous DB
                     if (File.Exists(System.IO.Path.Combine(_outputPath, Global.DB_FILE)) == true)
@@ -124,9 +129,6 @@ namespace SessionViewer
                     _dictionary.Clear();
                     _dictionary = null;
 
-                    //sw.Stop();
-                    //UserInterface.DisplayMessageBox(sw.Elapsed.ToString(), System.Windows.Forms.MessageBoxIcon.Information);
-
                     OnComplete();
                 }
                 catch (Exception ex)
@@ -159,11 +161,20 @@ namespace SessionViewer
                     return;
                 }
 
+                if (IgnoreLocal == true)
+                {
+                    if (Networking.IsOnIntranet(System.Net.IPAddress.Parse(ip.Source.ToString())) == true &
+                        Networking.IsOnIntranet(System.Net.IPAddress.Parse(ip.Destination.ToString())) == true)
+                    {
+                        return;
+                    }
+                }
+                
                 Connection connection = new Connection(packet);
                 
                 if (_dictionary.ContainsKey(connection) == false)
                 {
-                    PacketReconstructor packetReconstructor = new PacketReconstructor(_outputPath);
+                    PacketReconstructor packetReconstructor = new PacketReconstructor(_outputPath, AutoHttp, AutoGzip, _maxSize);
                     _dictionary.Add(connection, packetReconstructor);
                 }
 
@@ -181,9 +192,9 @@ namespace SessionViewer
                     WriteOldSessions(packet);
                 }
 
-                if (_packetCount % 1000 == 0)
+                if (_packetCount % 10000 == 0)
                 {
-                    OnMessage("Processed " + _packetCount + " packets...");
+                    OnMessage("Processed " + _packetCount + " packets...(" + _dictionary.Count + " sessions)");
                 }
             }
             catch (Exception ex)
@@ -211,22 +222,36 @@ namespace SessionViewer
                     {
                         var temp = _dictionary[connection];
 
-                        if (packet != null)
+                        if (temp.TimestampLastPacket == null)
                         {
-                            if (temp.TimestampLastPacket == null)
+                            if (temp.DataSize == 0)
                             {
-                                if (temp.DataSize == 0)
-                                {
-                                    _dictionary[connection].Dispose();
-                                    _dictionary.Remove(connection);
-                                }
-                                continue;
+                                _dictionary[connection].Dispose();
+                                _dictionary.Remove(connection);
                             }
+                            continue;
+                        }
 
-                            // Lets ignore sessions that are still within the threshold
-                            if (packet.Timestamp < temp.TimestampLastPacket.Value.AddMinutes(SessionInterval))
+                        if (temp.HasFin == false)
+                        {
+                            if (packet != null)
                             {
-                                continue;
+                                // Lets ignore sessions that are still within the threshold
+                                if (packet.Timestamp < temp.TimestampLastPacket.Value.AddMinutes(SessionInterval))
+                                {
+                                    continue;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            if (packet != null)
+                            {
+                                // Only kill sessions that have had a FIN and at least a minute has past
+                                if (packet.Timestamp < temp.TimestampLastPacket.Value.AddMinutes(1))
+                                {
+                                    continue;
+                                }
                             }
                         }
 
@@ -241,8 +266,30 @@ namespace SessionViewer
 
                         session.SourceIp = connection.SourceIpNumeric;
                         session.SourcePort = connection.SourcePort;
+
+                        try
+                        {
+                            Country country = _ls.getCountry(connection.SourceIp);
+                            if (country != null)
+                            {
+                                session.SourceCountry = country.getCode();
+                            }
+                        }
+                        catch (Exception ex) { }
+                        
                         session.DestinationIp = connection.DestinationIpNumeric;
                         session.DestinationPort = connection.DestinationPort;
+
+                        try
+                        {
+                            Country country = _ls.getCountry(connection.DestinationIp);
+                            if (country != null)
+                            {
+                                session.DestinationCountry = country.getCode();
+                            }
+                        }
+                        catch (Exception) { }
+
                         session.TimestampFirstPacket = _dictionary[connection].TimestampFirstPacket;
                         session.TimestampLastPacket = _dictionary[connection].TimestampLastPacket;
                         session.IsGzipped = _dictionary[connection].IsGzipped;
@@ -256,41 +303,14 @@ namespace SessionViewer
                         _dictionary.Remove(connection);
 
                         if (ishttp == true)
-                       {
-                        //    string text = File.ReadAllText(System.IO.Path.Combine(_outputPath, session.Guid + ".txt"));
-                        //    //Match match = _regexHost.Match(text);
-                        //    //if (match.Success == true)
-                        //    //{
-                        //    session.HttpHost = httpHost;
-                        //    //}
-
-                        //    //MatchCollection matches = _regexMethod.Matches(text);
-                        //    //if (matches.Count > 0)
-                        //    //{
-                        //    //    if (matches.Count == 1)
-                        //    //    {
-                        //    //        session.HttpMethods = matches[0].Value.Trim();
-                        //    //    }
-                        //    //    else
-                        //    //    {
-                        //    //        var methods = matches.Cast<Match>().Select(mm => mm.Value).Skip(1).Distinct();
-                        //    //        session.HttpMethods = string.Join(",", methods.ToList());
-                        //    //        if (session.HttpMethods.Length > 100)
-                        //    //        {
-                        //    //            session.HttpMethods = session.HttpMethods.Substring(0, 100);
-                        //    //        }
-
-                        //    //        //session.HttpMethods = "Mixed";
-                        //    //    }
-                        //    }
-
-                            if (AutoGzip == true)
-                            {
-                                if (session.IsGzipped == true & session.IsChunked == false)
-                                {
-                                    PerformGzipDecode(session.Guid);
-                                }
-                            }
+                        {
+                            //if (AutoGzip == true)
+                            //{
+                            //    if (session.IsGzipped == true & session.IsChunked == false)
+                            //    {
+                            //        PerformGzipDecode(session.Guid);
+                            //    }
+                            //}
                         }
 
                         db.Insert("Sessions", "Id", session);
@@ -316,81 +336,60 @@ namespace SessionViewer
         /// <param name="guid"></param>
         private void PerformGzipDecode(string guid)
         {
-            Storage storage = null;
             try
             {
                 StringBuilder gzip = new StringBuilder();
                 StringBuilder ascii = new StringBuilder();
-                using (var file = File.OpenRead(System.IO.Path.Combine(_outputPath, guid + ".bin")))
+                byte[] temp = File.ReadAllBytes(System.IO.Path.Combine(_outputPath, guid + ".bin"));
+
+                using (MemoryStream memoryStream = new MemoryStream(temp))
+                using (BinaryReader streamReader = new BinaryReader(memoryStream, Encoding.ASCII))
                 {
-                    storage = Serializer.Deserialize<Storage>(file);
+                    gzip.Append(Global.HTML_HEADER);
 
-                    using (MemoryStream memoryStream = new MemoryStream(storage.Hex.ToArray()))
-                    using (BinaryReader streamReader = new BinaryReader(memoryStream, Encoding.ASCII))
+                    string line = string.Empty;
+                    while ((line = ReadLine(streamReader)) != null)
                     {
-                        gzip.Append(Global.HTML_HEADER);
-
-                        string line = string.Empty;
-                        while ((line = ReadLine(streamReader)) != null)
+                        if (_regexHttpRequest.Match(line).Success == true)
                         {
-                            if (_regexHttpRequest.Match(line).Success == true)
-                            {
-                                string request = ParseRequest(streamReader, line);
-                                string sanitised = _regexUnprintable.Replace(woanware.Text.ReplaceNulls(request), ".");
+                            string request = ParseRequest(streamReader, line);
+                            string sanitised = _regexUnprintable.Replace(woanware.Text.ReplaceNulls(request), ".");
 
-                                ascii.Append(sanitised);
-                                gzip.Append(Functions.GenerateHtml(sanitised, true));
+                            ascii.Append(sanitised);
+                            gzip.Append(Functions.GenerateHtml(sanitised, true));
+                            continue;
+                        }
+
+                        if (_regexHttpResponse.Match(line).Success == true)
+                        {
+                            string response = ParseResponse(streamReader, line);
+                            if (response == string.Empty)
+                            {
                                 continue;
                             }
 
-                            if (_regexHttpResponse.Match(line).Success == true)
+                            string sanitised = _regexUnprintable.Replace(woanware.Text.ReplaceNulls(response), ".");
+                            gzip.Append(Functions.GenerateHtml(sanitised, false));
+
+                            //ascii.Append(sanitised);
+
+                            if (sanitised.EndsWith("\r\n\r\n") == false)
                             {
-                                string response = ParseResponse(streamReader, line);
-                                if (response == string.Empty)
-                                {
-                                    continue;
-                                }
-
-                                string sanitised = _regexUnprintable.Replace(woanware.Text.ReplaceNulls(response), ".");
-                                gzip.Append(Functions.GenerateHtml(sanitised, false));
-
-                                //ascii.Append(sanitised);
-
-                                if (sanitised.EndsWith("\r\n\r\n") == false)
-                                {
-                                    sanitised += Environment.NewLine + Environment.NewLine;
-                                }
-
-                                ascii.Append(sanitised);
-                                
+                                sanitised += Environment.NewLine + Environment.NewLine;
                             }
+
+                            ascii.Append(sanitised);
+
                         }
-
-                        gzip.Append(Global.HTML_FOOTER);
                     }
+
+                    gzip.Append(Global.HTML_FOOTER);
                 }
 
-                storage.Gzip = gzip.ToString();
-                storage.Ascii = ascii.ToString();
-                using (var file = File.Create(System.IO.Path.Combine(_outputPath, guid + ".bin")))
-                {
-                    Serializer.Serialize(file, storage);
-                }
+                IO.WriteTextToFile(gzip.ToString(), System.IO.Path.Combine(_outputPath, guid + ".html"), false);
+                IO.WriteTextToFile(ascii.ToString(), System.IO.Path.Combine(_outputPath, guid + ".txt"), false);
             }
-            catch (Exception)
-            {
-                if (storage == null)
-                {
-                    return;
-                }
-
-                // Clear out the gzip content so that the default Html property will be displayed
-                storage.Gzip = string.Empty;
-                using (var file = File.Create(System.IO.Path.Combine(_outputPath, guid + ".bin")))
-                {
-                    Serializer.Serialize(file, storage);
-                }
-            }
+            catch (Exception){}
         }
         #endregion
 

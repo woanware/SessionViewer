@@ -85,6 +85,27 @@ namespace SessionViewer
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="fs"></param>
+        /// <param name="data"></param>
+        public static void WriteToFileStream(FileStream fs, string data)
+        {
+            byte[] temp = ASCIIEncoding.ASCII.GetBytes(data);
+            fs.Write(temp, 0, temp.Length);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="fs"></param>
+        /// <param name="data"></param>
+        public static void WriteToFileStream(FileStream fs, byte[] data)
+        {
+            fs.Write(data, 0, data.Length);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
         /// <param name="outputPath"></param>
         /// <param name="guid"></param>
         public static bool GzipDecodeSession(string outputPath, string guid)
@@ -95,7 +116,8 @@ namespace SessionViewer
                 Regex regexUnprintable = new Regex(@"[^\u0000-\u007F]");
                 Regex regexHttpResponse = new Regex(@"^HTTP/1\.[0,1]\s+\d*\s\w*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-                using (FileStream fileHtml = new FileStream(System.IO.Path.Combine(outputPath, guid + ".gzipped.html"), FileMode.Create))
+                using (FileStream fileHtml = new FileStream(System.IO.Path.Combine(outputPath, guid + ".html"), FileMode.Create))
+                using (FileStream fileText = new FileStream(System.IO.Path.Combine(outputPath, guid + ".txt"), FileMode.Create))
                 using (FileStream fileStream = new FileStream(System.IO.Path.Combine(outputPath, guid + ".bin"), FileMode.Open))
                 using (BinaryReader streamReader = new BinaryReader(fileStream))
                 {
@@ -111,6 +133,7 @@ namespace SessionViewer
                             string sanitised = regexUnprintable.Replace(woanware.Text.ReplaceNulls(request), ".");
                             byte[] html = Functions.GenerateHtmlToBytes(sanitised, true);
                             fileHtml.Write(html, 0, html.Length);
+                            Functions.WriteToFileStream(fileText, sanitised + Environment.NewLine);
                             continue;
                         }
 
@@ -125,6 +148,7 @@ namespace SessionViewer
                             string sanitised = regexUnprintable.Replace(woanware.Text.ReplaceNulls(response), ".");
                             byte[] html = Functions.GenerateHtmlToBytes(sanitised, false);
                             fileHtml.Write(html, 0, html.Length);
+                            Functions.WriteToFileStream(fileText, sanitised);
                         }
                     }
 
@@ -136,7 +160,7 @@ namespace SessionViewer
             }
             catch (Exception ex)
             {
-                IO.DeleteFile(System.IO.Path.Combine(outputPath, guid + ".gzipped.html"));
+                //IO.DeleteFile(System.IO.Path.Combine(outputPath, guid + ".gzipped.html"));
                 return false;
             }
         }

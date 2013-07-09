@@ -7,7 +7,6 @@ using System.Text.RegularExpressions;
 using System.Web;
 using PcapDotNet.Packets.IpV4;
 using PcapDotNet.Packets.Transport;
-using ProtoBuf;
 using PcapDotNet.Packets.Http;
 
 // Translated from the file follow.c from WireShark source code
@@ -62,13 +61,18 @@ namespace SessionViewer
         private Regex _regexMethod;
        //private int _packetCount;
         public bool IsGzipped { get; private set; }
+        public bool HasFin { get; private set; }
         public bool IsChunked { get; private set; }
         public bool IsHttp { get; private set; }
         private bool _haveHttpHost;
         public string HttpHost { get; private set; }
         private List<string> _httpMethods;
-
-        private Storage _storage;
+        private bool _autoHttp;
+        private bool _autoGzip;
+        private long _maxSize;
+        private FileStream _storageHex = null;
+        private FileStream _storageHtml = null;
+        //private Storage _storage;
         private string _outputPath;
         #endregion
 
@@ -76,23 +80,33 @@ namespace SessionViewer
         /// 
         /// </summary>
         /// <param name="outputPath"></param>
-        public PacketReconstructor(string outputPath)
+        /// <param name="autoHttp"></param>
+        /// <param name="autoGzip"></param>
+        /// <param name="maxSize"></param>
+        public PacketReconstructor(string outputPath, 
+                                   bool autoHttp,
+                                   bool autoGzip,
+                                   long maxSize)
         {
             _outputPath = outputPath;
+            _autoHttp = autoHttp;
+            _autoGzip = autoGzip;
+            _maxSize = maxSize;
+
             this.Guid = System.Guid.NewGuid().ToString();
             ResetTcpReassembly();
 
             HttpHost = string.Empty;
             _regexGzip = new Regex(@"^content-encoding:\s*gzip", RegexOptions.IgnoreCase | RegexOptions.Multiline);
             _regexChunked = new Regex(@"^transfer-encoding:\s*chunked", RegexOptions.IgnoreCase | RegexOptions.Multiline);
-            //_regexHttp = new Regex(@"^.*\s.*HTTP/1.[0,1]");
-            _regexHost = new Regex(@"^Host:\s+(.*)", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Multiline);
+            _regexHost = new Regex(@"^Host:\s*(.*)", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Multiline);
             _regexMethod = new Regex(@"^(GET|HEAD|POST|DELETE|OPTIONS|PUT|TRACE|TRACK)\s+.*HTTP/1\.[01]", RegexOptions.Compiled);
 
             _httpMethods = new List<string>();
 
-            _storage = new Storage();
-            _storage.Html = Global.HTML_HEADER;
+            _storageHex = new System.IO.FileStream(Path.Combine(_outputPath, Guid + ".bin"), System.IO.FileMode.Create);
+            _storageHtml = new System.IO.FileStream(Path.Combine(_outputPath, Guid + ".html"), System.IO.FileMode.Create);
+            Functions.WriteToFileStream(_storageHtml, Global.HTML_HEADER);
         }
 
         /// <summary>
@@ -102,11 +116,9 @@ namespace SessionViewer
         {
             try
             {
-                _storage.Html += Global.HTML_FOOTER;
-                using (var file = File.Create(Path.Combine(_outputPath, Guid + ".bin")))
-                {
-                    Serializer.Serialize(file, _storage);
-                }
+                Functions.WriteToFileStream(_storageHtml, Global.HTML_FOOTER);
+                _storageHex.Dispose();
+                _storageHtml.Dispose();
             }
             catch (Exception) {}
         }
@@ -119,8 +131,21 @@ namespace SessionViewer
         {
             try
             {
+                if (_maxSize > 0)
+                {
+                    if (DataSize > _maxSize)
+                    {
+                        return;
+                    }
+                }
+
                 IpV4Datagram ip = packet.Ethernet.IpV4;
                 TcpDatagram tcp = ip.Tcp;
+
+                if (tcp.IsFin == true)
+                {
+                    HasFin = true;
+                }
 
                 if (tcp.HeaderLength > tcp.Length)
                 {
@@ -149,7 +174,7 @@ namespace SessionViewer
                 }
 
                 TimestampLastPacket = packet.Timestamp;
-
+                
                 ReassembleTcp((ulong)tcp.SequenceNumber, 
                                length,
                                tcp.Payload.ToMemoryStream().ToArray(), 
@@ -187,6 +212,8 @@ namespace SessionViewer
         {
             try
             {
+                //byte[] temp = woanware.Text.ReplaceNulls(data);
+
                 // Ignore empty packets
                 if (data.Length == 0)
                 {
@@ -209,12 +236,7 @@ namespace SessionViewer
 
                 DataSize += data.Length;
 
-                if (_lastPacketOutbound != isOutBound)
-                {
-                    _storage.Hex.AddRange(Encoding.ASCII.GetBytes("\r\n\r\n"));
-                }
-
-                _storage.Hex.AddRange(data);
+                Functions.WriteToFileStream(_storageHex, data);
 
                 // Remove unprintable characters
                 Regex rgx = new Regex(@"[^\u0000-\u007F]");
@@ -235,24 +257,25 @@ namespace SessionViewer
                         IsChunked = match.Success;
                     }
 
-                    if (_haveHttpHost == false)
+                    if (_autoHttp == true)
                     {
-                        Match match = _regexHost.Match(sanitised);
-                        _haveHttpHost = match.Success;
-                        HttpHost = match.Groups[1].Value.Trim();
-                    }
-
-                    Match matchMethod = _regexMethod.Match(sanitised);
-                    if (matchMethod.Success == true)
-                    {
-                        if (_httpMethods.Contains(matchMethod.Groups[1].Value) == false)
+                        if (_haveHttpHost == false)
                         {
-                            _httpMethods.Add(matchMethod.Groups[1].Value);
+                            Match match = _regexHost.Match(sanitised);
+                            _haveHttpHost = match.Success;
+                            HttpHost = match.Groups[1].Value.Trim();
+                        }
+
+                        Match matchMethod = _regexMethod.Match(sanitised);
+                        if (matchMethod.Success == true)
+                        {
+                            if (_httpMethods.Contains(matchMethod.Groups[1].Value) == false)
+                            {
+                                _httpMethods.Add(matchMethod.Groups[1].Value);
+                            }
                         }
                     }
                 }
-                
-               
 
                 // HTML
                 StringBuilder html = new StringBuilder();
@@ -274,25 +297,20 @@ namespace SessionViewer
 
                     sanitised = sanitised.Trim();
 
-                    html.Append(@"<br>");
-                    _storage.Ascii += Environment.NewLine + Environment.NewLine;
+                    Functions.WriteToFileStream(_storageHtml, @"<br>");
                     _lastPacketOutbound = isOutBound;
                 }
 
-                 // Text
-                _storage.Ascii += sanitised;
-
                 string tempHtml = HttpUtility.HtmlEncode(sanitised);
-                //if (tempHtml.EndsWith("\r\n\r\n") == true)
-                //{
-                //    tempHtml = tempHtml.Substring(0, tempHtml.Length - 4);
-                //}
+                if (tempHtml.EndsWith("\r\n\r\n") == true)
+                {
+                    tempHtml = tempHtml.Substring(0, tempHtml.Length - 4);
+                }
 
                 tempHtml = tempHtml.Replace("\r\n", "<br>");
                 html.Append(tempHtml);
                 html.Append(@"</font>");
-
-                _storage.Html += html.ToString();
+                Functions.WriteToFileStream(_storageHtml, html.ToString());
             }
             catch (Exception ex) 
             {
@@ -346,6 +364,7 @@ namespace SessionViewer
                     if (_srcAddr[j] == srcx && _srcPort[j] == srcport)
                     {
                         src_index = j;
+                        break;
                     }
                 }
                 /* we didn't find it if src_index == -1 */
@@ -367,6 +386,21 @@ namespace SessionViewer
                 if (src_index < 0)
                 {
                     throw new Exception("Too many addresses!");
+                }
+
+                /* Before adding data for this flow to the data_out_file, check whether
+                 * this frame acks fragments that were already seen. This happens when
+                 * frames are not in the capture file, but were actually seen by the 
+                 * receiving host (Fixes bug 592).
+                 */
+                if (_frags[1 - src_index] != null)
+                {
+                    while (CheckFragments(net_src,
+                                         net_dst,
+                                         srcport,
+                                         dstport,
+                                         1 - src_index,
+                                         timestamp));
                 }
 
                 /* now that we have filed away the srcs, lets get the sequence number stuff figured out */
@@ -501,41 +535,96 @@ namespace SessionViewer
             {
                 tcp_frag prev = null;
                 tcp_frag current;
+                ulong lowest_seq;
                 current = _frags[index];
-                while (current != null)
+                if (current != null)
                 {
-                    if (current.seq == _seq[index])
+                    lowest_seq = current.seq;
+                    while (current != null)
                     {
-                        /* this fragment fits the stream */
-                        if (current.data != null)
+                        if ((lowest_seq - current.seq) > 0)
                         {
-                            SavePacketData(net_src, 
-                                           net_dst, 
-                                           srcport, 
-                                           dstport, 
-                                           index, 
-                                           current.data, 
-                                           timestamp);
+                            lowest_seq = current.seq;
                         }
 
-                        _seq[index] += current.len;
-
-                        if (prev != null)
+                        if (current.seq < _seq[index])
                         {
-                            prev.next = current.next;
-                        }
-                        else
-                        {
-                            _frags[index] = current.next;
+                            ulong newseq;
+                            /* this sequence number seems dated, but
+                               check the end to make sure it has no more
+                               info than we have already seen */
+                            newseq = current.seq + current.len;
+                            if (newseq > _seq[index])
+                            {
+                                ulong new_pos;
+
+                                /* this one has more than we have seen. let's get the
+                                 payload that we have not seen. This happens when 
+                                 part of this frame has been retransmitted */
+
+                                new_pos = _seq[index] - current.seq;
+
+                                if (current.data_len > new_pos)
+                                {
+                                    //sc->dlen = current.data_len - new_pos;
+
+                                    SavePacketData(net_src,
+                                                 net_dst,
+                                                 srcport,
+                                                 dstport,
+                                                 index,
+                                                 current.data,
+                                                 timestamp);
+                                }
+
+                                _seq[index] += (current.len - new_pos);
+                                if (prev != null)
+                                {
+                                    prev.next = current.next;
+                                }
+                                else
+                                {
+                                    _frags[index] = current.next;
+                                }
+                                return true;
+                            }
                         }
 
-                        current.data = null;
-                        current = null;
-                        return true;
+
+                        if (current.seq == _seq[index])
+                        {
+                            /* this fragment fits the stream */
+                            if (current.data != null)
+                            {
+                                SavePacketData(net_src,
+                                               net_dst,
+                                               srcport,
+                                               dstport,
+                                               index,
+                                               current.data,
+                                               timestamp);
+                            }
+
+                            _seq[index] += current.len;
+
+                            if (prev != null)
+                            {
+                                prev.next = current.next;
+                            }
+                            else
+                            {
+                                _frags[index] = current.next;
+                            }
+
+                            current.data = null;
+                            current = null;
+                            return true;
+                        }
+                        prev = current;
+                        current = current.next;
                     }
-                    prev = current;
-                    current = current.next;
                 }
+                
                 return false;
             }
             catch (Exception ex) 

@@ -9,8 +9,10 @@ using System.Windows.Forms;
 using Be.Windows.Forms;
 using BrightIdeasSoftware;
 using CsvHelper.Configuration;
-using ProtoBuf;
 using woanware;
+using System.Text;
+using System.Net;
+using System.Runtime.Serialization;
 
 namespace SessionViewer
 {
@@ -40,6 +42,8 @@ namespace SessionViewer
             _parser.Error += OnParser_Error;
             _parser.Exclamation += OnParser_Exclamation;
             _parser.Message += OnParser_Message;
+
+            cboMaxSession.SelectedIndex = 0;
         }
         #endregion
 
@@ -232,14 +236,44 @@ namespace SessionViewer
                 listSession.ClearObjects();
 
                 _parser = new Parser();
-                _parser.AutoGzip = _settings.AutoGzip;
+                _parser.AutoHttp = toolBtnHttp.Checked;
+                _parser.IgnoreLocal = toolBtnRemoteOnly.Checked;
                 _parser.BufferInterval = _settings.BufferInterval;
                 _parser.SessionInterval = _settings.SessionInterval;
                 _parser.Complete += OnParser_Complete;
                 _parser.Error += OnParser_Error;
                 _parser.Exclamation += OnParser_Exclamation;
                 _parser.Message += OnParser_Message;
-                _parser.Parse(formOpen.PcapFile, formOpen.DatabaseFile);
+
+                long maxSize = 0;
+                switch (cboMaxSession.SelectedIndex)
+                {
+                    case 0: // None
+                        break;
+                    case 1: // 1 MB
+                        maxSize = 1048576;
+                        break;
+                    case 2: // 2 MB
+                        maxSize = 2097152;
+                        break;
+                    case 3: // 3 MB
+                        maxSize = 3145728;
+                        break;
+                    case 4: // 4 MB
+                        maxSize = 4194304;
+                        break;
+                    case 5: // 5 MB
+                        maxSize = 5242880;
+                        break;
+                    case 6: // 10 MB
+                        maxSize = 10485760;
+                        break;
+                    case 7: // 15 MB
+                        maxSize = 15728640;
+                        break;
+                }
+
+                _parser.Parse(formOpen.PcapFile, formOpen.DatabaseFile, maxSize);
             }
         }
 
@@ -420,8 +454,10 @@ namespace SessionViewer
 
                     olvcSourceIp.AutoResize(ColumnHeaderAutoResizeStyle.ColumnContent);
                     olvcSourcePort.AutoResize(ColumnHeaderAutoResizeStyle.HeaderSize);
+                    olvcSourceCountry.AutoResize(ColumnHeaderAutoResizeStyle.HeaderSize);
                     olvcDestinationIp.AutoResize(ColumnHeaderAutoResizeStyle.ColumnContent);
                     olvcDestinationPort.AutoResize(ColumnHeaderAutoResizeStyle.HeaderSize);
+                    olvcDestinationCountry.AutoResize(ColumnHeaderAutoResizeStyle.HeaderSize);
                     olvcSize.AutoResize(ColumnHeaderAutoResizeStyle.ColumnContent);
                     olvcHttpHost.AutoResize(ColumnHeaderAutoResizeStyle.ColumnContent);
                     olvcHttpMethods.AutoResize(ColumnHeaderAutoResizeStyle.ColumnContent);
@@ -460,39 +496,28 @@ namespace SessionViewer
                                 return;
                             }
 
-                            using (var file = File.OpenRead(System.IO.Path.Combine(_outputPath, session.Guid + ".bin")))
+                            byte[] temp = File.ReadAllBytes(System.IO.Path.Combine(_outputPath, session.Guid + ".bin"));
+
+                            DynamicByteProvider dynamicByteProvider = new DynamicByteProvider(temp);
+                            hexBox.ByteProvider = dynamicByteProvider;
+
+                            temp = woanware.Text.ReplaceNulls(temp);
+
+                            // Colourised (HTML)
+                            webControl.DocumentText = File.ReadAllText(System.IO.Path.Combine(_outputPath, session.Guid + ".html"));
+
+                            if (File.Exists(System.IO.Path.Combine(_outputPath, session.Guid + ".txt")) == true)
                             {
-                                Storage storage = Serializer.Deserialize<Storage>(file);
-
-                                // HEX
-                                DynamicByteProvider dynamicByteProvider = new DynamicByteProvider(storage.Hex);
-                                hexBox.ByteProvider = dynamicByteProvider;
-
-                                if (session.IsGzipped == true & session.IsChunked == false)
-                                {
-                                    webControl.DocumentText = storage.Gzip;
-                                }
-                                else
-                                {
-                                    webControl.DocumentText = storage.Html;
-                                }
-                                //// Colourised (HTML)
-                                //if (File.Exists(System.IO.Path.Combine(_outputPath, session.Guid + ".gzipped.html")) == true)
-                                //{
-                                //    webControl.DocumentText = storage.Gzip;//.Url = new Uri( String.Format(@"file:///" + System.IO.Path.Combine(_outputPath, session.Guid + ".gzipped.html"), _outputPath));
-                                //}
-                                //else
-                                //{
-                                //    webControl.Url = new Uri(String.Format(@"file:///" + System.IO.Path.Combine(_outputPath, session.Guid + ".html"), _outputPath));
-                                //}
-
                                 // ASCII
-                                //txtSession.Text = File.ReadAllText(System.IO.Path.Combine(_outputPath, session.Guid + ".txt"));
-                                txtSession.Text = storage.Ascii;
+                                txtSession.Text = File.ReadAllText(System.IO.Path.Combine(_outputPath, session.Guid + ".txt"));
                                 txtSession.ScrollToTop();
                             }
-
-
+                            else
+                            {
+                                // ASCII
+                                txtSession.Text = ASCIIEncoding.ASCII.GetString(temp);
+                                txtSession.ScrollToTop();
+                            }
                         }
                     }
                     catch (Exception ex)
@@ -549,10 +574,16 @@ namespace SessionViewer
                     value = temp.DataSize.ToString();
                     break;
                 case Global.FieldsCopy.TimestampFirstPacket:
-                    //value = temp.TimestampFirstPacket.ToString();
+                    value = temp.TimestampFirstPacket.ToString();
                     break;
                 case Global.FieldsCopy.TimestampLastPacket:
-                    //value = temp.TimestampLastPacket.ToString();
+                    value = temp.TimestampLastPacket.ToString();
+                    break;
+                case Global.FieldsCopy.SourceCountry:
+                    value = temp.SourceCountry.ToString();
+                    break;
+                case Global.FieldsCopy.DestinationCountry:
+                    value = temp.DestinationCountry.ToString();
                     break;
             }
 
@@ -601,7 +632,6 @@ namespace SessionViewer
             if (listSession.SelectedObjects.Count != 1)
             {
                 contextDecodeGzip.Enabled = false;
-                contextExportHex.Enabled = false;
                 return;
             }
 
@@ -609,13 +639,16 @@ namespace SessionViewer
             if (temp == null)
             {
                 contextDecodeGzip.Enabled = false;
-                contextExportHex.Enabled = false;
                 return;
             }
 
-            contextExportHex.Enabled = true;
-
             if (temp.IsGzipped == false)
+            {
+                contextDecodeGzip.Enabled = false;
+                return;
+            }
+
+            if (temp.IsChunked == true)
             {
                 contextDecodeGzip.Enabled = false;
                 return;
@@ -699,6 +732,26 @@ namespace SessionViewer
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
+        private void contextCopySourceCountry_Click(object sender, EventArgs e)
+        {
+            CopyDataToClipboard(Global.FieldsCopy.SourceCountry);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void contextCopyDestinationCountry_Click(object sender, EventArgs e)
+        {
+            CopyDataToClipboard(Global.FieldsCopy.DestinationCountry);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void contextExportUniqueSourceIp_Click(object sender, EventArgs e)
         {
             SaveFileDialog saveFileDialog = new SaveFileDialog();
@@ -771,49 +824,6 @@ namespace SessionViewer
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void contextExportHex_Click(object sender, EventArgs e)
-        {
-            SaveFileDialog saveFileDialog = new SaveFileDialog();
-            saveFileDialog.Title = "Select the export CSV";
-            saveFileDialog.Filter = "TSV Files|*.tsv";
-            if (saveFileDialog.ShowDialog(this) == DialogResult.Cancel)
-            {
-                return;
-            }
-
-            if (listSession.SelectedObjects.Count != 1)
-            {
-                return;
-            }
-
-            Session temp = (Session)listSession.SelectedObjects[0];
-            if (temp == null)
-            {
-                return;
-            }
-
-            try
-            {
-                using (new HourGlass(this))
-                {
-                    using (var file = File.OpenRead(System.IO.Path.Combine(_outputPath, temp.Guid + ".bin")))
-                    {
-                        Storage storage = Serializer.Deserialize<Storage>(file);
-                        File.WriteAllBytes(saveFileDialog.FileName, storage.Hex.ToArray());
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                UserInterface.DisplayErrorMessageBox(this, "An error occurred whilst exporting: " + ex.Message);
-            }
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
         private void contextDecodeGzip_Click(object sender, EventArgs e)
         {
             if (listSession.SelectedObjects.Count != 1)
@@ -854,24 +864,6 @@ namespace SessionViewer
                         }
 
                         LoadSession(temp);
-
-                        //// HEX
-                        //DynamicByteProvider dynamicByteProvider = new DynamicByteProvider(File.ReadAllBytes(System.IO.Path.Combine(_outputPath, session.Guid + ".bin")));
-                        //hexBox.ByteProvider = dynamicByteProvider;
-
-                        //// Colourised (HTML)
-                        //if (File.Exists(System.IO.Path.Combine(_outputPath, session.Guid + ".gzipped.html")) == true)
-                        //{
-                        //    webControl.Url = new Uri(String.Format(@"file:///" + System.IO.Path.Combine(_outputPath, session.Guid + ".gzipped.html"), _outputPath));
-                        //}
-                        //else
-                        //{
-                        //    webControl.Url = new Uri(String.Format(@"file:///" + System.IO.Path.Combine(_outputPath, session.Guid + ".html"), _outputPath));
-                        //}
-
-                        //// ASCII
-                        //txtSession.Text = File.ReadAllText(System.IO.Path.Combine(_outputPath, session.Guid + ".txt"));
-                        //txtSession.ScrollToTop();
                     }
                 };
 

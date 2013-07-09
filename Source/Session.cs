@@ -24,6 +24,8 @@ namespace SessionViewer
         public uint DestinationIp { get; set; }
         public int SourcePort { get; set; }
         public int DestinationPort { get; set; }
+        public string SourceCountry { get; set; }
+        public string DestinationCountry { get; set; }
         #endregion
 
         #region Constructor
@@ -40,6 +42,8 @@ namespace SessionViewer
         {
             Guid = guid;
             HttpHost = string.Empty;
+            SourceCountry = string.Empty;
+            DestinationCountry = string.Empty;
         }
         #endregion
 

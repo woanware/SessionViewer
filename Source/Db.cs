@@ -24,8 +24,10 @@ namespace SessionViewer
 , [TimestampLastPacket] datetime NULL
 , [SourceIp] bigint NULL
 , [SourcePort] int NULL
+, [SourceCountry] nvarchar(2) NULL
 , [DestinationIp] bigint NULL
 , [DestinationPort] int NULL
+, [DestinationCountry] nvarchar(2) NULL
 );";
         #endregion
 
