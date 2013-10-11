@@ -1,5 +1,23 @@
 # History #
 
+**v1.0.8**
+
+- Modified the HTTP request regex to match URL's starting with a fully qualified host name e.g. "http://www.blah.com/index.html" rather than "/index.html"
+- Modified the HTTP response regex to match response descriptions that contain a space e.g. 404 NOT FOUND
+
+- Added HTML "A HREF" tag matching and extracting 
+
+**v1.0.7**
+
+- Added export all of the extracted URLS. The export will also export a uniqued list of URL's. Use the File->Export->URL's menu item
+
+**v1.0.6**
+
+- Updated the HEX and HTML display's so that an extra line break is added when the sessions traffic changes direction, so that there is clear delineation between the traffic directions
+- Added URL parsing. All URL's are extracted from HTTP sessions and are displayed on the new URL's tab
+- Fixed a potential null object exception when changing the options
+- Updated the error handling to log errors to the users local AppData directory for the application rather than the application directory 
+
 **v1.0.5**
 
 - Regressed the Winpcap dependencies from 4.1.2980 to 4.1.0.2100 

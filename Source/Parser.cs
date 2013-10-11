@@ -12,6 +12,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using woanware;
 using woanware.Network;
+using Ionic.Zlib;
 
 namespace SessionViewer
 {
@@ -62,9 +63,9 @@ namespace SessionViewer
             AutoGzip = false;
             _ls = new LookupService("GeoIP.dat", LookupService.GEOIP_MEMORY_CACHE);
 
-            _regexHost = new Regex(@"^Host:\s*(.*)", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
-            _regexMethod = new Regex(@"^()\s+.HTTP/1\.[0,1]", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
-            _regexHttpResponse = new Regex(@"^HTTP/1\.[0,1]\s+\d*\s\w*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            _regexHost = new Regex(@"^Host:\s*(.*)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+           // _regexMethod = new Regex(@"^()\s+.HTTP/1\.[0,1]", RegexOptions.Compiled);
+            _regexHttpResponse = new Regex(@"^HTTP/1\.[0,1]\s+\d*\s\w*.*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
             _regexHttpRequest = new Regex(@"^(GET|HEAD|POST|DELETE|OPTIONS|PUT|TRACE|TRACK)\s+.*HTTP/1\.[01]", RegexOptions.Compiled);
             _regexUnprintable = new Regex(@"[^\u0000-\u007F]", RegexOptions.Compiled);
             _regexHttpContentLength = new Regex(@"^content-length:\s*(\d*)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -304,13 +305,13 @@ namespace SessionViewer
 
                         if (ishttp == true)
                         {
-                            //if (AutoGzip == true)
-                            //{
-                            //    if (session.IsGzipped == true & session.IsChunked == false)
-                            //    {
-                            //        PerformGzipDecode(session.Guid);
-                            //    }
-                            //}
+                            if (AutoGzip == true)
+                            {
+                                if (session.IsGzipped == true & session.IsChunked == false)
+                                {
+                                    PerformGzipDecode(session.Guid);
+                                }
+                            }
                         }
 
                         db.Insert("Sessions", "Id", session);
@@ -379,7 +380,6 @@ namespace SessionViewer
                             }
 
                             ascii.Append(sanitised);
-
                         }
                     }
 
@@ -389,7 +389,9 @@ namespace SessionViewer
                 IO.WriteTextToFile(gzip.ToString(), System.IO.Path.Combine(_outputPath, guid + ".html"), false);
                 IO.WriteTextToFile(ascii.ToString(), System.IO.Path.Combine(_outputPath, guid + ".txt"), false);
             }
-            catch (Exception){}
+            catch (Exception ex) 
+            {
+            }
         }
         #endregion
 
@@ -433,35 +435,88 @@ namespace SessionViewer
             response.AppendLine(previousLine);
 
             string line = string.Empty;
-            int contentLength = 0;
-            string contentType = string.Empty;
+            int contentLength = -1;
+            string contentEncoding = string.Empty;
             bool chunked = false;
+            bool noContentLength = false;
+            long bodyStartPosition = 0;
+            long bodyEndPosition = streamReader.BaseStream.Length;
             while ((line = ReadLine(streamReader)) != null)
             {
+                // If we have no "Content-Length" then we just need to cycle 
+                // through to the end, so that we have the end position
+                if (noContentLength == true)
+                {
+                    if (line != string.Empty)
+                    {
+                        continue;
+                    }
+                }
+
+                if (line.Contains("200 OK"))
+                {
+
+                }
+
                 if (line == string.Empty)
                 {
-                    //response.Append(Environment.NewLine);
-
-                    byte[] body = new byte[contentLength];
-                    int ret = streamReader.Read(body, 0, contentLength);
-
-                    if (contentType.ToLower() == "gzip" & chunked == false)
+                    if (contentLength == -1)
                     {
-                        byte[] decompressedTemp = Decompress(body);
-                        string decompressed = Encoding.ASCII.GetString(decompressedTemp);
-                        return response.Append(decompressed).ToString();
-                    }
-                    else if (contentType.ToLower() == "gzip" & chunked == true)
-                    {
-                        while ((line = ReadLine(streamReader)) != null)
+                        if (noContentLength == true)
                         {
-                            string length = "0x" + line;
+                            byte[] body = new byte[streamReader.BaseStream.Position - bodyStartPosition];
+                            streamReader.BaseStream.Seek(bodyStartPosition, SeekOrigin.Begin);
+                            int ret = streamReader.Read(body, 0, (int)(streamReader.BaseStream.Position - bodyStartPosition));
+
+                            if (contentEncoding.ToLower() == "gzip" & chunked == false)
+                            {
+                                byte[] decompressedTemp = Decompress(body);
+                                string decompressed = Encoding.ASCII.GetString(decompressedTemp);
+                                return response.Append(decompressed).ToString();
+                            }
+                            else if (contentEncoding.ToLower() == "gzip" & chunked == true)
+                            {
+                                while ((line = ReadLine(streamReader)) != null)
+                                {
+                                    string length = "0x" + line;
+                                }
+                            }
+                            else
+                            {
+                                string decompressed = Encoding.ASCII.GetString(body);
+                                return response.Append(decompressed).ToString();
+                            }
+                        }
+                        else
+                        {
+                            noContentLength = true;
+                            bodyStartPosition = streamReader.BaseStream.Position;
+                            continue;
                         }
                     }
                     else
                     {
-                        string decompressed = Encoding.ASCII.GetString(body);
-                        return response.Append(decompressed).ToString();
+                        byte[] body = new byte[contentLength];
+                        int ret = streamReader.Read(body, 0, contentLength);
+
+                        if (contentEncoding.ToLower() == "gzip" & chunked == false)
+                        {
+                            byte[] decompressedTemp = Decompress(body);
+                            string decompressed = Encoding.ASCII.GetString(decompressedTemp);
+                            return response.Append(decompressed).ToString();
+                        }
+                        else if (contentEncoding.ToLower() == "gzip" & chunked == true)
+                        {
+                            while ((line = ReadLine(streamReader)) != null)
+                            {
+                                string length = "0x" + line;
+                            }
+                        }
+                        else
+                        {
+                            string decompressed = Encoding.ASCII.GetString(body);
+                            return response.Append(decompressed).ToString();
+                        }
                     }
                 }
 
@@ -474,15 +529,20 @@ namespace SessionViewer
                         {
                             return string.Empty;
                         }
+
+                        response.AppendLine(line);
+                        continue;
                     }
                 }
 
-                if (contentType.Length == 0)
+                if (contentEncoding.Length == 0)
                 {
                     Match match = _regexHttpContentEncoding.Match(line);
                     if (match.Success == true)
                     {
-                        contentType = match.Groups[1].Value;
+                        contentEncoding = match.Groups[1].Value;
+                        response.AppendLine(line);
+                        continue;
                     }
                 }
 
@@ -496,6 +556,35 @@ namespace SessionViewer
                 }
 
                 response.AppendLine(line);
+            }
+
+            if (contentLength == -1)
+            {
+                if (noContentLength == true)
+                {
+                    byte[] body = new byte[streamReader.BaseStream.Position - bodyStartPosition];
+                    streamReader.BaseStream.Seek(bodyStartPosition, SeekOrigin.Begin);
+                    int ret = streamReader.Read(body, 0, (int)(bodyEndPosition - bodyStartPosition));
+
+                    if (contentEncoding.ToLower() == "gzip" & chunked == false)
+                    {
+                        byte[] decompressedTemp = Decompress(body);
+                        string decompressed = Encoding.ASCII.GetString(decompressedTemp);
+                        return response.Append(decompressed).ToString();
+                    }
+                    else if (contentEncoding.ToLower() == "gzip" & chunked == true)
+                    {
+                        while ((line = ReadLine(streamReader)) != null)
+                        {
+                            string length = "0x" + line;
+                        }
+                    }
+                    else
+                    {
+                        string decompressed = Encoding.ASCII.GetString(body);
+                        return response.Append(decompressed).ToString();
+                    }
+                }
             }
 
             return response.ToString();
@@ -548,8 +637,7 @@ namespace SessionViewer
         /// <returns></returns>
         private byte[] Decompress(byte[] gzip)
         {
-            using (GZipStream stream = new GZipStream(new MemoryStream(gzip),
-                                                      CompressionMode.Decompress))
+            using (Ionic.Zlib.GZipStream stream = new Ionic.Zlib.GZipStream(new MemoryStream(gzip), Ionic.Zlib.CompressionMode.Decompress))
             {
                 const int size = 4096;
                 byte[] buffer = new byte[size];

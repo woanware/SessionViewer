@@ -55,10 +55,11 @@ namespace SessionViewer
         private bool _lastPacketOutbound = true;
         public long DataSize { get; private set; }
         private Regex _regexGzip;
-       private Regex _regexChunked;
+        private Regex _regexChunked;
         //private Regex _regexHttp;
         private Regex _regexHost;
         private Regex _regexMethod;
+        private Regex _regexLink;
        //private int _packetCount;
         public bool IsGzipped { get; private set; }
         public bool HasFin { get; private set; }
@@ -67,11 +68,13 @@ namespace SessionViewer
         private bool _haveHttpHost;
         public string HttpHost { get; private set; }
         private List<string> _httpMethods;
+        //private List<string> _httpUrls;
         private bool _autoHttp;
         private bool _autoGzip;
         private long _maxSize;
         private FileStream _storageHex = null;
         private FileStream _storageHtml = null;
+        private FileStream _storageInfo = null;
         //private Storage _storage;
         private string _outputPath;
         #endregion
@@ -97,14 +100,16 @@ namespace SessionViewer
             ResetTcpReassembly();
 
             HttpHost = string.Empty;
-            _regexGzip = new Regex(@"^content-encoding:\s*gzip", RegexOptions.IgnoreCase | RegexOptions.Multiline);
-            _regexChunked = new Regex(@"^transfer-encoding:\s*chunked", RegexOptions.IgnoreCase | RegexOptions.Multiline);
+            _regexGzip = new Regex(@"^content-encoding:\s*gzip", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
+            _regexChunked = new Regex(@"^transfer-encoding:\s*chunked", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
             _regexHost = new Regex(@"^Host:\s*(.*)", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Multiline);
-            _regexMethod = new Regex(@"^(GET|HEAD|POST|DELETE|OPTIONS|PUT|TRACE|TRACK)\s+.*HTTP/1\.[01]", RegexOptions.Compiled);
+            _regexMethod = new Regex(@"^(GET|HEAD|POST|DELETE|OPTIONS|PUT|TRACE|TRACK)\s+?([http://|/].*)HTTP/1\.[01]", RegexOptions.Compiled);
+            _regexLink = new Regex(@"<a href=[""|'](.*)[""|']>.*?</a>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
             _httpMethods = new List<string>();
 
             _storageHex = new System.IO.FileStream(Path.Combine(_outputPath, Guid + ".bin"), System.IO.FileMode.Create);
+            _storageInfo= new System.IO.FileStream(Path.Combine(_outputPath, Guid + ".urls"), System.IO.FileMode.Create);
             _storageHtml = new System.IO.FileStream(Path.Combine(_outputPath, Guid + ".html"), System.IO.FileMode.Create);
             Functions.WriteToFileStream(_storageHtml, Global.HTML_HEADER);
         }
@@ -118,6 +123,7 @@ namespace SessionViewer
             {
                 Functions.WriteToFileStream(_storageHtml, Global.HTML_FOOTER);
                 _storageHex.Dispose();
+                _storageInfo.Dispose();
                 _storageHtml.Dispose();
             }
             catch (Exception) {}
@@ -238,6 +244,11 @@ namespace SessionViewer
 
                 Functions.WriteToFileStream(_storageHex, data);
 
+                if (_lastPacketOutbound != isOutBound)
+                {
+                    //Functions.WriteToFileStream(_storageHex, "\r\n");
+                }
+
                 // Remove unprintable characters
                 Regex rgx = new Regex(@"[^\u0000-\u007F]");
                 string presanitised = woanware.Text.ByteArrayToString((byte[])data, woanware.Text.EncodingType.Ascii);
@@ -262,8 +273,15 @@ namespace SessionViewer
                         if (_haveHttpHost == false)
                         {
                             Match match = _regexHost.Match(sanitised);
-                            _haveHttpHost = match.Success;
-                            HttpHost = match.Groups[1].Value.Trim();
+                            if (match.Success == true)
+                            {
+                                _haveHttpHost = true;
+                                HttpHost = match.Groups[1].Value.Trim();
+                                if (HttpHost.Contains("woan"))
+                                {
+
+                                }
+                            }
                         }
 
                         Match matchMethod = _regexMethod.Match(sanitised);
@@ -272,6 +290,21 @@ namespace SessionViewer
                             if (_httpMethods.Contains(matchMethod.Groups[1].Value) == false)
                             {
                                 _httpMethods.Add(matchMethod.Groups[1].Value);
+                            }
+
+                            if (matchMethod.Groups[2].Value.Trim().Length > 0)
+                            {
+                                Functions.WriteToFileStream(_storageInfo, "URL: " + matchMethod.Groups[2].Value + Environment.NewLine);
+                            }
+                        }
+
+                        MatchCollection matchesLink = _regexLink.Matches(sanitised);
+                        if (matchesLink.Count > 0)
+                        {
+                            foreach (Match match in matchesLink)
+                            {
+                                Functions.WriteToFileStream(_storageInfo, "LINK: " + match.Groups[1].Value + Environment.NewLine);
+
                             }
                         }
                     }

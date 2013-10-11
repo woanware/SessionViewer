@@ -75,7 +75,8 @@ namespace SessionViewer
         private void OnParser_Error(string message)
         {
             _hourGlass.Dispose();
-            IO.WriteTextToFile(message + Environment.NewLine, System.IO.Path.Combine(Misc.GetApplicationDirectory(), "Errors.txt"), true);
+
+            IO.WriteTextToFile(message + Environment.NewLine, System.IO.Path.Combine(Misc.GetUserDataDirectory(), "Errors.txt"), true);
             UserInterface.DisplayErrorMessageBox(this, message);
             SetProcessingStatus(true);
         }
@@ -147,7 +148,7 @@ namespace SessionViewer
         /// <param name="e"></param>
         private void listSession_SelectedIndexChanged(object sender, EventArgs e)
         {
-            Task task = Task.Factory.StartNew(() =>
+            new Thread(() =>
             {
                 MethodInvoker methodInvoker = delegate
                 {
@@ -177,7 +178,7 @@ namespace SessionViewer
                 {
                     methodInvoker.Invoke();
                 }
-            });
+            }).Start();
         }
         #endregion
 
@@ -237,6 +238,7 @@ namespace SessionViewer
 
                 _parser = new Parser();
                 _parser.AutoHttp = toolBtnHttp.Checked;
+                _parser.AutoGzip = _settings.AutoGzip;
                 _parser.IgnoreLocal = toolBtnRemoteOnly.Checked;
                 _parser.BufferInterval = _settings.BufferInterval;
                 _parser.SessionInterval = _settings.SessionInterval;
@@ -306,6 +308,88 @@ namespace SessionViewer
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
+        private void menuFileExportUrls_Click(object sender, EventArgs e)
+        {
+            FolderBrowserDialog fbd = new FolderBrowserDialog();
+            fbd.Description = "Select the export directory";
+
+            if (fbd.ShowDialog(this) == DialogResult.Cancel)
+            {
+                return;
+            }
+
+            string directory = fbd.SelectedPath;
+            string fileName = System.IO.Path.Combine(directory, "urls.tsv");
+
+            new Thread(() =>
+            {
+                MethodInvoker methodInvoker = delegate
+                {
+                    using (new HourGlass(this))
+                    {
+                        CsvConfiguration csvConfiguration = new CsvConfiguration();
+                        csvConfiguration.Delimiter = '\t';
+
+                        using (FileStream fileStream = new FileStream(fileName, FileMode.Create, FileAccess.Write))
+                        using (StreamWriter streamWriter = new StreamWriter(fileStream))
+                        using (CsvHelper.CsvWriter csvWriter = new CsvHelper.CsvWriter(streamWriter, csvConfiguration))
+                        {
+                            csvWriter.WriteField("Host");
+                            csvWriter.WriteField("Destination IP");
+                            csvWriter.WriteField("URL");
+                            csvWriter.NextRecord();
+
+                            List<string> temp = new List<string>();
+
+                            foreach (Session session in listSession.Objects)
+                            {
+                                string[] urls = File.ReadAllLines(System.IO.Path.Combine(_outputPath, session.Guid + ".urls"));
+                                foreach (string url in urls)
+                                {
+                                    string tempUrl = url.Trim();
+                                    if (tempUrl.Length == 0)
+                                    {
+                                        continue;
+                                    }
+
+                                    if (temp.Contains(session.HttpHost + tempUrl) == false)
+                                    {
+                                        temp.Add(session.HttpHost + tempUrl);
+                                    }
+
+                                    csvWriter.WriteField(session.HttpHost);
+                                    csvWriter.WriteField(session.DstIpText);
+                                    csvWriter.WriteField(tempUrl);
+                                    csvWriter.NextRecord();
+                                }
+                            }
+
+                            temp.Sort();
+
+                            foreach (string url in temp)
+                            {
+                                IO.WriteUnicodeTextToFile(url, System.IO.Path.Combine(directory, "urls.txt"), true);
+                            }
+                        }
+                    }
+                };
+
+                if (this.InvokeRequired == true)
+                {
+                    this.BeginInvoke(methodInvoker);
+                }
+                else
+                {
+                    methodInvoker.Invoke();
+                }
+            }).Start();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void menuToolsOptions_Click(object sender, EventArgs e)
         {
             using (FormOptions formOptions = new FormOptions(_settings.AutoGzip, 
@@ -321,9 +405,12 @@ namespace SessionViewer
                 _settings.BufferInterval = formOptions.BufferInterval;
                 _settings.SessionInterval = formOptions.SessionInterval;
 
-                _parser.AutoGzip = formOptions.AutoGzip;
-                _parser.BufferInterval = formOptions.BufferInterval;
-                _parser.SessionInterval = formOptions.SessionInterval;
+                if (_parser != null)
+                {
+                    _parser.AutoGzip = formOptions.AutoGzip;
+                    _parser.BufferInterval = formOptions.BufferInterval;
+                    _parser.SessionInterval = formOptions.SessionInterval;
+                }
             }
         }
         #endregion
@@ -518,6 +605,9 @@ namespace SessionViewer
                                 txtSession.Text = ASCIIEncoding.ASCII.GetString(temp);
                                 txtSession.ScrollToTop();
                             }
+
+                            txtUrls.Text = File.ReadAllText(System.IO.Path.Combine(_outputPath, session.Guid + ".urls"));
+                            txtUrls.ScrollToTop();
                         }
                     }
                     catch (Exception ex)

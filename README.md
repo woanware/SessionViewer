@@ -22,6 +22,7 @@ To speed up the display of each session SessionViewer viewer produces a **large*
 - [Winpcap](http://www.winpcap.org/) : Parsing of PCAP files
 - [Utility](http://www.woanware.co.uk) (woanware) : My helper library
 - [MaxMind GeoLite](http://www.maxmind.com): Geo IP locations
+- [DotNetZip](http://dotnetzip.codeplex.com/): Gzip decompression
 
 ## Requirements ##
 
