@@ -94,7 +94,7 @@
             this.hexBox = new Be.Windows.Forms.HexBox();
             this.tabPageColourised = new System.Windows.Forms.TabPage();
             this.webControl = new System.Windows.Forms.WebBrowser();
-            this.tabPageUrls = new System.Windows.Forms.TabPage();
+            this.tabPageInfo = new System.Windows.Forms.TabPage();
             this.txtUrls = new System.Windows.Forms.RichTextBox();
             this.menu.SuspendLayout();
             this.toolStrip.SuspendLayout();
@@ -109,7 +109,7 @@
             this.tabPageAscii.SuspendLayout();
             this.tabPageHex.SuspendLayout();
             this.tabPageColourised.SuspendLayout();
-            this.tabPageUrls.SuspendLayout();
+            this.tabPageInfo.SuspendLayout();
             this.SuspendLayout();
             // 
             // menu
@@ -142,46 +142,46 @@
             // menuFileImport
             // 
             this.menuFileImport.Name = "menuFileImport";
-            this.menuFileImport.Size = new System.Drawing.Size(152, 22);
+            this.menuFileImport.Size = new System.Drawing.Size(110, 22);
             this.menuFileImport.Text = "Import";
             this.menuFileImport.Click += new System.EventHandler(this.menuFileImport_Click);
             // 
             // menuFileOpen
             // 
             this.menuFileOpen.Name = "menuFileOpen";
-            this.menuFileOpen.Size = new System.Drawing.Size(152, 22);
+            this.menuFileOpen.Size = new System.Drawing.Size(110, 22);
             this.menuFileOpen.Text = "Open";
             this.menuFileOpen.Click += new System.EventHandler(this.menuFileOpen_Click);
             // 
             // menuFileSep2
             // 
             this.menuFileSep2.Name = "menuFileSep2";
-            this.menuFileSep2.Size = new System.Drawing.Size(149, 6);
+            this.menuFileSep2.Size = new System.Drawing.Size(107, 6);
             // 
             // menuFileExport
             // 
             this.menuFileExport.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.menuFileExportUrls});
             this.menuFileExport.Name = "menuFileExport";
-            this.menuFileExport.Size = new System.Drawing.Size(152, 22);
+            this.menuFileExport.Size = new System.Drawing.Size(110, 22);
             this.menuFileExport.Text = "Export";
             // 
             // menuFileExportUrls
             // 
             this.menuFileExportUrls.Name = "menuFileExportUrls";
-            this.menuFileExportUrls.Size = new System.Drawing.Size(152, 22);
+            this.menuFileExportUrls.Size = new System.Drawing.Size(103, 22);
             this.menuFileExportUrls.Text = "URL\'s";
             this.menuFileExportUrls.Click += new System.EventHandler(this.menuFileExportUrls_Click);
             // 
             // menuFileSep1
             // 
             this.menuFileSep1.Name = "menuFileSep1";
-            this.menuFileSep1.Size = new System.Drawing.Size(149, 6);
+            this.menuFileSep1.Size = new System.Drawing.Size(107, 6);
             // 
             // menuFileExit
             // 
             this.menuFileExit.Name = "menuFileExit";
-            this.menuFileExit.Size = new System.Drawing.Size(152, 22);
+            this.menuFileExit.Size = new System.Drawing.Size(110, 22);
             this.menuFileExit.Text = "Exit";
             this.menuFileExit.Click += new System.EventHandler(this.menuFileExit_Click);
             // 
@@ -606,7 +606,7 @@
             this.tabControl.Controls.Add(this.tabPageAscii);
             this.tabControl.Controls.Add(this.tabPageHex);
             this.tabControl.Controls.Add(this.tabPageColourised);
-            this.tabControl.Controls.Add(this.tabPageUrls);
+            this.tabControl.Controls.Add(this.tabPageInfo);
             this.tabControl.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tabControl.Location = new System.Drawing.Point(0, 0);
             this.tabControl.Name = "tabControl";
@@ -639,10 +639,10 @@
             // tabPageHex
             // 
             this.tabPageHex.Controls.Add(this.hexBox);
-            this.tabPageHex.Location = new System.Drawing.Point(4, 22);
+            this.tabPageHex.Location = new System.Drawing.Point(4, 24);
             this.tabPageHex.Name = "tabPageHex";
             this.tabPageHex.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPageHex.Size = new System.Drawing.Size(262, 264);
+            this.tabPageHex.Size = new System.Drawing.Size(262, 262);
             this.tabPageHex.TabIndex = 1;
             this.tabPageHex.Text = "HEX";
             this.tabPageHex.UseVisualStyleBackColor = true;
@@ -657,7 +657,7 @@
             this.hexBox.Name = "hexBox";
             this.hexBox.ReadOnly = true;
             this.hexBox.ShadowSelectionColor = System.Drawing.Color.FromArgb(((int)(((byte)(100)))), ((int)(((byte)(60)))), ((int)(((byte)(188)))), ((int)(((byte)(255)))));
-            this.hexBox.Size = new System.Drawing.Size(256, 258);
+            this.hexBox.Size = new System.Drawing.Size(256, 256);
             this.hexBox.StringViewVisible = true;
             this.hexBox.TabIndex = 0;
             this.hexBox.UseFixedBytesPerLine = true;
@@ -666,10 +666,10 @@
             // tabPageColourised
             // 
             this.tabPageColourised.Controls.Add(this.webControl);
-            this.tabPageColourised.Location = new System.Drawing.Point(4, 22);
+            this.tabPageColourised.Location = new System.Drawing.Point(4, 24);
             this.tabPageColourised.Name = "tabPageColourised";
             this.tabPageColourised.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPageColourised.Size = new System.Drawing.Size(262, 264);
+            this.tabPageColourised.Size = new System.Drawing.Size(262, 262);
             this.tabPageColourised.TabIndex = 2;
             this.tabPageColourised.Text = "Colourised";
             this.tabPageColourised.UseVisualStyleBackColor = true;
@@ -682,20 +682,20 @@
             this.webControl.MinimumSize = new System.Drawing.Size(20, 20);
             this.webControl.Name = "webControl";
             this.webControl.ScriptErrorsSuppressed = true;
-            this.webControl.Size = new System.Drawing.Size(256, 258);
+            this.webControl.Size = new System.Drawing.Size(256, 256);
             this.webControl.TabIndex = 1;
             this.webControl.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.webControl_PreviewKeyDown);
             // 
-            // tabPageUrls
+            // tabPageInfo
             // 
-            this.tabPageUrls.Controls.Add(this.txtUrls);
-            this.tabPageUrls.Location = new System.Drawing.Point(4, 22);
-            this.tabPageUrls.Name = "tabPageUrls";
-            this.tabPageUrls.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPageUrls.Size = new System.Drawing.Size(262, 264);
-            this.tabPageUrls.TabIndex = 3;
-            this.tabPageUrls.Text = "URL\'s";
-            this.tabPageUrls.UseVisualStyleBackColor = true;
+            this.tabPageInfo.Controls.Add(this.txtUrls);
+            this.tabPageInfo.Location = new System.Drawing.Point(4, 24);
+            this.tabPageInfo.Name = "tabPageInfo";
+            this.tabPageInfo.Padding = new System.Windows.Forms.Padding(3);
+            this.tabPageInfo.Size = new System.Drawing.Size(262, 262);
+            this.tabPageInfo.TabIndex = 3;
+            this.tabPageInfo.Text = "Info";
+            this.tabPageInfo.UseVisualStyleBackColor = true;
             // 
             // txtUrls
             // 
@@ -704,7 +704,7 @@
             this.txtUrls.Location = new System.Drawing.Point(3, 3);
             this.txtUrls.Name = "txtUrls";
             this.txtUrls.ReadOnly = true;
-            this.txtUrls.Size = new System.Drawing.Size(256, 258);
+            this.txtUrls.Size = new System.Drawing.Size(256, 256);
             this.txtUrls.TabIndex = 1;
             this.txtUrls.Text = "";
             // 
@@ -743,7 +743,7 @@
             this.tabPageAscii.ResumeLayout(false);
             this.tabPageHex.ResumeLayout(false);
             this.tabPageColourised.ResumeLayout(false);
-            this.tabPageUrls.ResumeLayout(false);
+            this.tabPageInfo.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -812,7 +812,7 @@
         private BrightIdeasSoftware.OLVColumn olvcDestinationCountry;
         private System.Windows.Forms.ToolStripMenuItem contextCopySourceCountry;
         private System.Windows.Forms.ToolStripMenuItem contextCopyDestinationCountry;
-        private System.Windows.Forms.TabPage tabPageUrls;
+        private System.Windows.Forms.TabPage tabPageInfo;
         private System.Windows.Forms.RichTextBox txtUrls;
         private System.Windows.Forms.ToolStripSeparator menuFileSep2;
         private System.Windows.Forms.ToolStripMenuItem menuFileExport;

@@ -13,6 +13,7 @@ using System.Threading;
 using woanware;
 using woanware.Network;
 using Ionic.Zlib;
+using HtmlAgilityPack;
 
 namespace SessionViewer
 {
@@ -53,6 +54,7 @@ namespace SessionViewer
         private Regex _regexHttpContentLength;
         private Regex _regexHttpContentEncoding;
         private Regex _regexChunkedEncoding;
+        private Regex _regexLink;
         #endregion
 
         /// <summary>
@@ -71,6 +73,12 @@ namespace SessionViewer
             _regexHttpContentLength = new Regex(@"^content-length:\s*(\d*)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
             _regexHttpContentEncoding = new Regex(@"^content-encoding:\s*(\w*)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
             _regexChunkedEncoding = new Regex(@"^transfer-encoding:\s*chunked", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            _regexMethod = new Regex(@"^(GET|HEAD|POST|DELETE|OPTIONS|PUT|TRACE|TRACK|CONNECT)\s+?([http://|https://|/|\w|\d].*)HTTP/1\.[01]", RegexOptions.Compiled);
+            _regexLink = new Regex(@"<a href=[""|'](.*)[""|']>.*?</a>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+            _regexHost = new Regex(@"^Host:\s*(.*)", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Multiline);
+            //_regexMethod = new Regex(@"^(GET|HEAD|POST|DELETE|OPTIONS|PUT|TRACE|TRACK)\s+?([http://|/].*)HTTP/1\.[01]", RegexOptions.Compiled);
+            _regexLink = new Regex(@"<a href=[""|'](.*)[""|']>.*?</a>", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Multiline);
         }
 
         #region Public Methods
@@ -289,17 +297,17 @@ namespace SessionViewer
                                 session.DestinationCountry = country.getCode();
                             }
                         }
-                        catch (Exception) { }
+                        catch (Exception) {}
 
                         session.TimestampFirstPacket = _dictionary[connection].TimestampFirstPacket;
                         session.TimestampLastPacket = _dictionary[connection].TimestampLastPacket;
                         session.IsGzipped = _dictionary[connection].IsGzipped;
                         session.IsChunked = _dictionary[connection].IsChunked;
-                        session.HttpHost = _dictionary[connection].HttpHost;
-                        session.HttpMethods = _dictionary[connection].HttpMethods;
+                        //session.HttpHost = _dictionary[connection].HttpHost;
+                        //session.HttpMethods = _dictionary[connection].HttpMethods;
 
                         bool ishttp = _dictionary[connection].IsHttp;
-                        string httpHost = _dictionary[connection].HttpHost;
+                        //string httpHost = _dictionary[connection].HttpHost;
                         _dictionary[connection].Dispose();
                         _dictionary.Remove(connection);
 
@@ -312,6 +320,8 @@ namespace SessionViewer
                                     PerformGzipDecode(session.Guid);
                                 }
                             }
+
+                            session = ParseHttpData(session);
                         }
 
                         db.Insert("Sessions", "Id", session);
@@ -328,6 +338,185 @@ namespace SessionViewer
             finally
             {
                 OnMessage(string.Empty);
+            }
+        }
+        //
+        
+        //        }
+        //        catch (Exception ex)
+        //        {
+        //            _logger.Error("Unable to parse URL: " + link.Attributes[attribute].Value + " (" + ex.Message + ")");
+        //        }
+        //    }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="guid"></param>
+        private Session ParseHttpData(Session session)
+        {
+            string fileName = string.Empty;
+            if (File.Exists(System.IO.Path.Combine(_outputPath, session.Guid + ".txt")) == true)
+            {
+                fileName = System.IO.Path.Combine(_outputPath, session.Guid + ".txt");
+            }
+            else
+            {
+                fileName = System.IO.Path.Combine(_outputPath, session.Guid + ".bin");
+            }
+
+            string line = string.Empty;
+            bool haveHttpHost = false;
+            List<string> httpMethods = new List<string>();
+            List<string> urls = new List<string>();
+            List<string> links = new List<string>();
+
+            if (session.DataSize > 102400) // 100 MB
+            {
+                using (FileStream storageInfo = new System.IO.FileStream(System.IO.Path.Combine(_outputPath, session.Guid + ".info"), 
+                                                                         System.IO.FileMode.Create))
+                using (System.IO.StreamReader file = new System.IO.StreamReader(fileName))
+                {
+                    while ((line = file.ReadLine()) != null)
+                    {
+                        ParseHttpUrlsAndMethods(session, 
+                                                haveHttpHost, 
+                                                line, 
+                                                httpMethods, 
+                                                urls, 
+                                                storageInfo);
+
+                        MatchCollection matchesLink = _regexLink.Matches(line);
+                        foreach (Match match in matchesLink)
+                        {
+                            string md5 = Text.ConvertByteArrayToHexString(Security.GenerateMd5Hash(match.Groups[1].Value.Trim()));
+                            if (links.Contains(md5) == false)
+                            {
+                                links.Add(md5);
+                                Functions.WriteToFileStream(storageInfo, "LINK: " + match.Groups[1].Value + Environment.NewLine);
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                using (FileStream storageInfo = new FileStream(System.IO.Path.Combine(_outputPath, session.Guid + ".info"), 
+                                                               System.IO.FileMode.Create))
+                using (System.IO.StreamReader file = new System.IO.StreamReader(fileName))
+                {
+                    while ((line = file.ReadLine()) != null)
+                    {
+                        ParseHttpUrlsAndMethods(session, 
+                                                haveHttpHost, 
+                                                line, 
+                                                httpMethods, 
+                                                urls, 
+                                                storageInfo);
+                    }
+                }
+
+                ParseLinks(fileName, session.Guid);
+            }
+
+            httpMethods.Sort();
+            session.HttpMethods = string.Join(",", httpMethods);
+
+            return session;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="session"></param>
+        /// <param name="haveHttpHost"></param>
+        /// <param name="line"></param>
+        /// <param name="httpMethods"></param>
+        /// <param name="urls"></param>
+        /// <param name="storageInfo"></param>
+        private void ParseHttpUrlsAndMethods(Session session, 
+                                             bool haveHttpHost, 
+                                             string line, 
+                                             List<string> httpMethods, 
+                                             List<string> urls, 
+                                             FileStream storageInfo)
+        {
+            if (haveHttpHost == false)
+            {
+                Match match = _regexHost.Match(line);
+                if (match.Success == true)
+                {
+                    haveHttpHost = true;
+                    session.HttpHost = match.Groups[1].Value.Trim();
+                }
+            }
+
+            Match matchMethod = _regexMethod.Match(line);
+            if (matchMethod.Success == true)
+            {
+                if (httpMethods.Contains(matchMethod.Groups[1].Value) == false)
+                {
+                    httpMethods.Add(matchMethod.Groups[1].Value);
+                }
+
+                if (matchMethod.Groups[2].Value.Trim().Length > 0)
+                {
+                    string md5 = Text.ConvertByteArrayToHexString(Security.GenerateMd5Hash(matchMethod.Groups[2].Value.Trim()));
+                    if (urls.Contains(md5) == false)
+                    {
+                        urls.Add(md5);
+                        Functions.WriteToFileStream(storageInfo, "URL: " + matchMethod.Groups[2].Value + Environment.NewLine);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="file"></param>
+        /// <param name="guid"></param>
+        private void ParseLinks(string file, string guid)
+        {
+            List<string> links = new List<string>();
+
+            string data = File.ReadAllText(file);
+            HtmlNode.ElementsFlags.Remove("form");
+
+            HtmlDocument htmlDocument = new HtmlDocument();
+            htmlDocument.LoadHtml(data);
+
+            if (htmlDocument.DocumentNode.SelectNodes(@"//a[@href]") == null)
+            {
+                return;
+            }
+
+            using (FileStream storageInfo = new System.IO.FileStream(System.IO.Path.Combine(_outputPath, guid + ".info"), System.IO.FileMode.Append))
+            {
+                foreach (HtmlNode link in htmlDocument.DocumentNode.SelectNodes(@"//a[@href]"))
+                {
+                    try
+                    {
+                        if (link.Attributes["href"] == null)
+                        {
+                            continue;
+                        }
+
+                        string md5 = Text.ConvertByteArrayToHexString(Security.GenerateMd5Hash(link.Attributes["href"].Value.Trim()));
+                        if (md5.ToLower() == "6666cd76f96956469e7be39d750cc7d9")
+                        {
+                            // Ignore "/"
+                            continue;
+                        }
+
+                        if (links.Contains(md5) == false)
+                        {
+                            links.Add(md5);
+                            Functions.WriteToFileStream(storageInfo, "LINK: " + link.Attributes["href"].Value + Environment.NewLine);
+                        }
+                    }
+                    catch (Exception) { }
+                }
             }
         }
 
@@ -453,39 +642,18 @@ namespace SessionViewer
                     }
                 }
 
-                if (line.Contains("200 OK"))
-                {
-
-                }
-
                 if (line == string.Empty)
                 {
                     if (contentLength == -1)
                     {
                         if (noContentLength == true)
                         {
-                            byte[] body = new byte[streamReader.BaseStream.Position - bodyStartPosition];
-                            streamReader.BaseStream.Seek(bodyStartPosition, SeekOrigin.Begin);
-                            int ret = streamReader.Read(body, 0, (int)(streamReader.BaseStream.Position - bodyStartPosition));
-
-                            if (contentEncoding.ToLower() == "gzip" & chunked == false)
-                            {
-                                byte[] decompressedTemp = Decompress(body);
-                                string decompressed = Encoding.ASCII.GetString(decompressedTemp);
-                                return response.Append(decompressed).ToString();
-                            }
-                            else if (contentEncoding.ToLower() == "gzip" & chunked == true)
-                            {
-                                while ((line = ReadLine(streamReader)) != null)
-                                {
-                                    string length = "0x" + line;
-                                }
-                            }
-                            else
-                            {
-                                string decompressed = Encoding.ASCII.GetString(body);
-                                return response.Append(decompressed).ToString();
-                            }
+                            return PerformDecompression(streamReader, 
+                                                        bodyStartPosition, 
+                                                        streamReader.BaseStream.Position - bodyStartPosition, 
+                                                        contentEncoding, 
+                                                        chunked, 
+                                                        response);
                         }
                         else
                         {
@@ -496,27 +664,12 @@ namespace SessionViewer
                     }
                     else
                     {
-                        byte[] body = new byte[contentLength];
-                        int ret = streamReader.Read(body, 0, contentLength);
-
-                        if (contentEncoding.ToLower() == "gzip" & chunked == false)
-                        {
-                            byte[] decompressedTemp = Decompress(body);
-                            string decompressed = Encoding.ASCII.GetString(decompressedTemp);
-                            return response.Append(decompressed).ToString();
-                        }
-                        else if (contentEncoding.ToLower() == "gzip" & chunked == true)
-                        {
-                            while ((line = ReadLine(streamReader)) != null)
-                            {
-                                string length = "0x" + line;
-                            }
-                        }
-                        else
-                        {
-                            string decompressed = Encoding.ASCII.GetString(body);
-                            return response.Append(decompressed).ToString();
-                        }
+                        return PerformDecompression(streamReader,
+                                                    bodyStartPosition,
+                                                    contentLength,
+                                                    contentEncoding,
+                                                    chunked,
+                                                    response);
                     }
                 }
 
@@ -562,32 +715,59 @@ namespace SessionViewer
             {
                 if (noContentLength == true)
                 {
-                    byte[] body = new byte[streamReader.BaseStream.Position - bodyStartPosition];
-                    streamReader.BaseStream.Seek(bodyStartPosition, SeekOrigin.Begin);
-                    int ret = streamReader.Read(body, 0, (int)(bodyEndPosition - bodyStartPosition));
-
-                    if (contentEncoding.ToLower() == "gzip" & chunked == false)
-                    {
-                        byte[] decompressedTemp = Decompress(body);
-                        string decompressed = Encoding.ASCII.GetString(decompressedTemp);
-                        return response.Append(decompressed).ToString();
-                    }
-                    else if (contentEncoding.ToLower() == "gzip" & chunked == true)
-                    {
-                        while ((line = ReadLine(streamReader)) != null)
-                        {
-                            string length = "0x" + line;
-                        }
-                    }
-                    else
-                    {
-                        string decompressed = Encoding.ASCII.GetString(body);
-                        return response.Append(decompressed).ToString();
-                    }
+                    return PerformDecompression(streamReader,
+                                                bodyStartPosition,
+                                                streamReader.BaseStream.Position - bodyStartPosition,
+                                                contentEncoding,
+                                                chunked,
+                                                response);
                 }
             }
 
             return response.ToString();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="streamReader"></param>
+        /// <param name="bodyStartPosition"></param>
+        /// <param name="length"></param>
+        /// <param name="contentEncoding"></param>
+        /// <param name="chunked"></param>
+        /// <param name="response"></param>
+        /// <returns></returns>
+        private string PerformDecompression(BinaryReader streamReader, 
+                                            long bodyStartPosition, 
+                                            long length,
+                                            string contentEncoding, 
+                                            bool chunked, 
+                                            StringBuilder response)
+        {
+            byte[] body = new byte[length];
+            streamReader.BaseStream.Seek(bodyStartPosition, SeekOrigin.Begin);
+            int ret = streamReader.Read(body, 0, (int)length);
+
+            if (contentEncoding.ToLower() == "gzip" & chunked == false)
+            {
+                byte[] decompressedTemp = Decompress(body);
+                string decompressed = Encoding.ASCII.GetString(decompressedTemp);
+                return response.Append(decompressed).ToString();
+            }
+            else if (contentEncoding.ToLower() == "gzip" & chunked == true)
+            {
+                //string line = string.Empty;
+                //while ((line = ReadLine(streamReader)) != null)
+                //{
+                //    string length = "0x" + line;
+                //}
+                return response.ToString();
+            }
+            else
+            {
+                string decompressed = Encoding.ASCII.GetString(body);
+                return response.Append(decompressed).ToString();
+            }
         }
 
         /// <summary>

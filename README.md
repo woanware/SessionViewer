@@ -1,4 +1,4 @@
- ISessionViewer
+ SessionViewer
 =============
 
 SessionViewer is a PCAP TCP session reconstructor and viewer with the initial concept/code used from this [codeproject](http://www.codeproject.com/Articles/20501/TCP-Session-Reconstruction-Tool/) article. It has been rewrite numerous times to attempt to use a database as the storage, however, it has proven too slow, even with SQL Server, therefore multiple files are used that are generated with some pre-processing. 
@@ -23,6 +23,7 @@ To speed up the display of each session SessionViewer viewer produces a **large*
 - [Utility](http://www.woanware.co.uk) (woanware) : My helper library
 - [MaxMind GeoLite](http://www.maxmind.com): Geo IP locations
 - [DotNetZip](http://dotnetzip.codeplex.com/): Gzip decompression
+- [HtmlAgilityPack](http://htmlagilitypack.codeplex.com/): HTML link parsing
 
 ## Requirements ##
 

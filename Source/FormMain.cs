@@ -606,7 +606,7 @@ namespace SessionViewer
                                 txtSession.ScrollToTop();
                             }
 
-                            txtUrls.Text = File.ReadAllText(System.IO.Path.Combine(_outputPath, session.Guid + ".urls"));
+                            txtUrls.Text = File.ReadAllText(System.IO.Path.Combine(_outputPath, session.Guid + ".info"));
                             txtUrls.ScrollToTop();
                         }
                     }

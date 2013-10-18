@@ -4,8 +4,11 @@
 
 - Modified the HTTP request regex to match URL's starting with a fully qualified host name e.g. "http://www.blah.com/index.html" rather than "/index.html"
 - Modified the HTTP response regex to match response descriptions that contain a space e.g. 404 NOT FOUND
-
 - Added HTML "A HREF" tag matching and extracting 
+- Move all HTTP parsing from the packet level parser to the session parser, so in theory it should be quicker
+- Modified the HTTP parsing so that it stores an MD5 of the parsed data e.g. link, URL etc, which is then used to ensure that no duplicates are output
+- Modified the HTTP method regex to support CONNECT methods
+- Modified the HTTP method regex to support URL's that begin with https://
 
 **v1.0.7**
 

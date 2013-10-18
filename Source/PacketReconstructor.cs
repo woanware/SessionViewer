@@ -57,17 +57,17 @@ namespace SessionViewer
         private Regex _regexGzip;
         private Regex _regexChunked;
         //private Regex _regexHttp;
-        private Regex _regexHost;
-        private Regex _regexMethod;
-        private Regex _regexLink;
+        //private Regex _regexHost;
+        //private Regex _regexMethod;
+        //private Regex _regexLink;
        //private int _packetCount;
         public bool IsGzipped { get; private set; }
         public bool HasFin { get; private set; }
         public bool IsChunked { get; private set; }
         public bool IsHttp { get; private set; }
         private bool _haveHttpHost;
-        public string HttpHost { get; private set; }
-        private List<string> _httpMethods;
+        //public string HttpHost { get; private set; }
+        //private List<string> _httpMethods;
         //private List<string> _httpUrls;
         private bool _autoHttp;
         private bool _autoGzip;
@@ -99,17 +99,17 @@ namespace SessionViewer
             this.Guid = System.Guid.NewGuid().ToString();
             ResetTcpReassembly();
 
-            HttpHost = string.Empty;
+            //HttpHost = string.Empty;
             _regexGzip = new Regex(@"^content-encoding:\s*gzip", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
             _regexChunked = new Regex(@"^transfer-encoding:\s*chunked", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
-            _regexHost = new Regex(@"^Host:\s*(.*)", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Multiline);
-            _regexMethod = new Regex(@"^(GET|HEAD|POST|DELETE|OPTIONS|PUT|TRACE|TRACK)\s+?([http://|/].*)HTTP/1\.[01]", RegexOptions.Compiled);
-            _regexLink = new Regex(@"<a href=[""|'](.*)[""|']>.*?</a>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            //_regexHost = new Regex(@"^Host:\s*(.*)", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Multiline);
+            //_regexMethod = new Regex(@"^(GET|HEAD|POST|DELETE|OPTIONS|PUT|TRACE|TRACK)\s+?([http://|/].*)HTTP/1\.[01]", RegexOptions.Compiled);
+            //_regexLink = new Regex(@"<a href=[""|'](.*)[""|']>.*?</a>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-            _httpMethods = new List<string>();
+            //_httpMethods = new List<string>();
 
             _storageHex = new System.IO.FileStream(Path.Combine(_outputPath, Guid + ".bin"), System.IO.FileMode.Create);
-            _storageInfo= new System.IO.FileStream(Path.Combine(_outputPath, Guid + ".urls"), System.IO.FileMode.Create);
+            //_storageInfo= new System.IO.FileStream(Path.Combine(_outputPath, Guid + ".urls"), System.IO.FileMode.Create);
             _storageHtml = new System.IO.FileStream(Path.Combine(_outputPath, Guid + ".html"), System.IO.FileMode.Create);
             Functions.WriteToFileStream(_storageHtml, Global.HTML_HEADER);
         }
@@ -123,7 +123,7 @@ namespace SessionViewer
             {
                 Functions.WriteToFileStream(_storageHtml, Global.HTML_FOOTER);
                 _storageHex.Dispose();
-                _storageInfo.Dispose();
+                //_storageInfo.Dispose();
                 _storageHtml.Dispose();
             }
             catch (Exception) {}
@@ -270,43 +270,38 @@ namespace SessionViewer
 
                     if (_autoHttp == true)
                     {
-                        if (_haveHttpHost == false)
-                        {
-                            Match match = _regexHost.Match(sanitised);
-                            if (match.Success == true)
-                            {
-                                _haveHttpHost = true;
-                                HttpHost = match.Groups[1].Value.Trim();
-                                if (HttpHost.Contains("woan"))
-                                {
+                        //if (_haveHttpHost == false)
+                        //{
+                        //    Match match = _regexHost.Match(sanitised);
+                        //    if (match.Success == true)
+                        //    {
+                        //        _haveHttpHost = true;
+                        //        HttpHost = match.Groups[1].Value.Trim();
+                        //    }
+                        //}
 
-                                }
-                            }
-                        }
+                        //Match matchMethod = _regexMethod.Match(sanitised);
+                        //if (matchMethod.Success == true)
+                        //{
+                        //    if (_httpMethods.Contains(matchMethod.Groups[1].Value) == false)
+                        //    {
+                        //        _httpMethods.Add(matchMethod.Groups[1].Value);
+                        //    }
 
-                        Match matchMethod = _regexMethod.Match(sanitised);
-                        if (matchMethod.Success == true)
-                        {
-                            if (_httpMethods.Contains(matchMethod.Groups[1].Value) == false)
-                            {
-                                _httpMethods.Add(matchMethod.Groups[1].Value);
-                            }
+                        //    if (matchMethod.Groups[2].Value.Trim().Length > 0)
+                        //    {
+                        //        Functions.WriteToFileStream(_storageInfo, "URL: " + matchMethod.Groups[2].Value + Environment.NewLine);
+                        //    }
+                        //}
 
-                            if (matchMethod.Groups[2].Value.Trim().Length > 0)
-                            {
-                                Functions.WriteToFileStream(_storageInfo, "URL: " + matchMethod.Groups[2].Value + Environment.NewLine);
-                            }
-                        }
-
-                        MatchCollection matchesLink = _regexLink.Matches(sanitised);
-                        if (matchesLink.Count > 0)
-                        {
-                            foreach (Match match in matchesLink)
-                            {
-                                Functions.WriteToFileStream(_storageInfo, "LINK: " + match.Groups[1].Value + Environment.NewLine);
-
-                            }
-                        }
+                        //MatchCollection matchesLink = _regexLink.Matches(sanitised);
+                        //if (matchesLink.Count > 0)
+                        //{
+                        //    foreach (Match match in matchesLink)
+                        //    {
+                        //        Functions.WriteToFileStream(_storageInfo, "LINK: " + match.Groups[1].Value + Environment.NewLine);
+                        //    }
+                        //}
                     }
                 }
 
@@ -701,19 +696,19 @@ namespace SessionViewer
             }
         }
 
-        #region Properties
-        /// <summary>
-        /// 
-        /// </summary>
-        public string HttpMethods
-        {
-            get
-            {
-                _httpMethods.Sort();
-                return string.Join(",", _httpMethods);
-            }
-        }
-        #endregion
+        //#region Properties
+        ///// <summary>
+        ///// 
+        ///// </summary>
+        //public string HttpMethods
+        //{
+        //    get
+        //    {
+        //        _httpMethods.Sort();
+        //        return string.Join(",", _httpMethods);
+        //    }
+        //}
+        //#endregion
 
         #region Event Methods
         ///// <summary>
