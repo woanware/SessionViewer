@@ -56,10 +56,10 @@ namespace SessionViewer
                 return;
             }
 
-            if (File.Exists(System.IO.Path.Combine(txtOutputPath.Text, Global.DB_FILE)) == true)
+            if (File.Exists(System.IO.Path.Combine(folderBrowserDialog.SelectedPath, Global.DB_FILE)) == true)
             {
                 DialogResult dialogResult = MessageBox.Show(this,
-                                                       "A SessionViewer database already exists in the directory. Do you want to overwrite?",
+                                                       "A SessionViewer database already exists in the directory. Do you want to continue?",
                                                        Application.ProductName,
                                                        MessageBoxButtons.YesNo,
                                                        MessageBoxIcon.Question);
@@ -68,6 +68,8 @@ namespace SessionViewer
                 {
                     return;
                 }
+
+                //woanware.IO.DeleteFile(System.IO.Path.Combine(folderBrowserDialog.SelectedPath, Global.DB_FILE));
             }
 
             txtOutputPath.Text = folderBrowserDialog.SelectedPath;

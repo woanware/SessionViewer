@@ -12,16 +12,13 @@ namespace SessionViewer
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="autoGzip"></param>
         /// <param name="bufferInterval"></param>
         /// <param name="sessionInterval"></param>
-        public FormOptions(bool autoGzip, 
-                           int bufferInterval, 
+        public FormOptions(int bufferInterval, 
                            int sessionInterval)
         {
             InitializeComponent();
 
-            chkAutoGzip.Checked = autoGzip;
             UserInterface.LocateAndSelectComboBoxValue(bufferInterval.ToString(), cboBufferInterval);
             UserInterface.LocateAndSelectComboBoxValue(sessionInterval.ToString(), cboSessionInterval);
         }
@@ -50,17 +47,6 @@ namespace SessionViewer
         #endregion
 
         #region Properties
-        /// <summary>
-        /// 
-        /// </summary>
-        public bool AutoGzip
-        {
-            get
-            {
-                return chkAutoGzip.Checked;
-            }
-        }
-
         /// <summary>
         /// 
         /// </summary>

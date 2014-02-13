@@ -1,0 +1,55 @@
+https://github.com/jamietre/HtmlParserSharp
+
+Modified:
+
+override protected XmlElement CreateHtmlElementSetAsRoot(HtmlAttributes attributes)
+		{
+			XmlElement rv = document.CreateElement("html", "http://www.w3.org/1999/xhtml");
+			for (int i = 0; i < attributes.Length; i++) {
+                string uri = attributes.GetURI(i);
+                if (attributes.GetLocalName(i) == "xmlns" && string.IsNullOrWhiteSpace(uri))
+                {
+                    uri = "http://www.w3.org/2000/xmlns/";
+                }
+				rv.SetAttribute(attributes.GetLocalName(i), uri, attributes.GetValue(i));
+			}
+			document.AppendChild(rv);
+			return rv;
+		}
+
+
+override protected XmlElement CreateElement(string ns, string name, HtmlAttributes attributes)
+		{
+			XmlElement rv = document.CreateElement(name, ns);
+			for (int i = 0; i < attributes.Length; i++)
+			{
+                string uri = attributes.GetURI(i);
+                if (attributes.GetLocalName(i) == "xmlns" && string.IsNullOrWhiteSpace(uri))
+                {
+                    uri = "http://www.w3.org/2000/xmlns/";
+                }
+
+                rv.SetAttribute(attributes.GetLocalName(i), uri, attributes.GetValue(i));
+				if (attributes.GetType(i) == "ID")
+				{
+					//rv.setIdAttributeNS(null, attributes.GetLocalName(i), true); // FIXME
+				}
+			}
+			return rv;
+		}
+
+
+override protected void AddAttributesToElement(XmlElement element, HtmlAttributes attributes) {
+			for (int i = 0; i < attributes.Length; i++) {
+				String localName = attributes.GetLocalName(i);
+				String uri = attributes.GetURI(i);
+                if (attributes.GetLocalName(i) == "xmlns" && string.IsNullOrWhiteSpace(uri))
+                {
+                    uri = "http://www.w3.org/2000/xmlns/";
+                }
+
+				if (!element.HasAttribute(localName, uri)) {
+					element.SetAttribute(localName, uri, attributes.GetValue(i));
+				}
+			}
+		}

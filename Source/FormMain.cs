@@ -1,18 +1,20 @@
-﻿using System;
+﻿using Be.Windows.Forms;
+using BrightIdeasSoftware;
+using CsvHelper.Configuration;
+using SessionViewer.PacketProcessors;
+using SessionViewer.SessionParsers;
+using SessionViewer.SessionProcessors;
+using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Data.Common;
 using System.IO;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using Be.Windows.Forms;
-using BrightIdeasSoftware;
-using CsvHelper.Configuration;
-using woanware;
 using System.Text;
-using System.Net;
-using System.Runtime.Serialization;
+using System.Threading;
+using System.Windows.Forms;
+using Trinet.Core.IO.Ntfs;
+using woanware;
 
 namespace SessionViewer
 {
@@ -27,6 +29,9 @@ namespace SessionViewer
         private Parser _parser;
         private string _outputPath = string.Empty;
         //private List<Session> _sessions = null;
+        private List<InterfaceExtractor> extractors;
+        private List<InterfaceParser> parsers;
+        private string _selectedGuid = string.Empty;
         #endregion
 
         #region Constructor
@@ -37,11 +42,49 @@ namespace SessionViewer
         {
             InitializeComponent();
 
+            ////// enable internal logging to the console
+            //InternalLogger.LogToConsole = true;
+
+            ////// enable internal logging to a file
+            //InternalLogger.LogFile = "C:\\USBDeviceForensics\\log2.txt";
+
+            ////// set internal log level
+            //InternalLogger.LogLevel = LogLevel.Trace;
+
+            LoggingExtensions.Logging.Log.InitializeWith<LoggingExtensions.NLog.NLogLog>();
+
+            //this.Log().Debug(() => "Testing testing 123!");
+
+            //Logger logger = LogManager.GetLogger("MyClassName");
+            //logger.Debug("testing testing 123!");
+
             _parser = new Parser();
             _parser.Complete += OnParser_Complete;
             _parser.Error += OnParser_Error;
             _parser.Exclamation += OnParser_Exclamation;
             _parser.Message += OnParser_Message;
+
+            this.extractors = new List<InterfaceExtractor>();
+            SmtpExtractor smtp = new SmtpExtractor();
+            smtp.Complete += OnProcessor_Complete;
+            smtp.Error += OnProcessor_Error;
+            smtp.Message += OnProcessor_Message;
+            smtp.Warning += OnProcessor_Warning;
+            this.extractors.Add(smtp);
+
+            this.parsers = new List<InterfaceParser>();
+            this.parsers.Add(new DnsParser());
+            this.parsers.Add(new SessionViewer.SessionParsers.HttpParser());
+
+            foreach (InterfaceParser processor in this.parsers)
+            {
+                ToolStripMenuItem menuItem = new ToolStripMenuItem(processor.Name);
+                menuItem.Tag = processor.Name;
+                menuItem.CheckOnClick = true;
+                menuItem.Checked = true;
+                menuItem.Click += menuParsers_Click;
+                menuParsers.DropDownItems.Add(menuItem);
+            }
 
             cboMaxSession.SelectedIndex = 0;
         }
@@ -86,13 +129,52 @@ namespace SessionViewer
         /// </summary>
         private void OnParser_Complete()
         {
-            _parser.Complete -= OnParser_Complete;
-            _parser.Error -= OnParser_Error;
-            _parser.Exclamation -= OnParser_Exclamation;
-            _parser.Message -= OnParser_Message;
-            _parser = null;
+            //_parser.Complete -= OnParser_Complete;
+            //_parser.Error -= OnParser_Error;
+            //_parser.Exclamation -= OnParser_Exclamation;
+            //_parser.Message -= OnParser_Message;
+            //_parser = null;
 
             LoadSessions();
+        }
+        #endregion
+
+        #region Processor Event Handlers
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="message"></param>
+        private void OnProcessor_Warning(string message)
+        {
+            UserInterface.DisplayMessageBox(this, message, MessageBoxIcon.Warning);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="message"></param>
+        private void OnProcessor_Message(string message)
+        {
+            UserInterface.DisplayMessageBox(this, message, MessageBoxIcon.Information);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="message"></param>
+        private void OnProcessor_Error(string message)
+        {
+            UserInterface.DisplayMessageBox(this, message, MessageBoxIcon.Error);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="message"></param>
+        private void OnProcessor_Complete(string message)
+        {
+            _hourGlass.Dispose();
+            UserInterface.DisplayMessageBox(this, message, MessageBoxIcon.Information);
         }
         #endregion
 
@@ -146,20 +228,29 @@ namespace SessionViewer
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void listSession_SelectedIndexChanged(object sender, EventArgs e)
+        private void listSession_SelectionChanged(object sender, EventArgs e)
         {
             new Thread(() =>
             {
                 MethodInvoker methodInvoker = delegate
                 {
+                    if (listSession.SelectedObjects.Count != 1)
+                    {
+                        return;
+                    }
+
                     using (new HourGlass(this))
                     {
-                        if (listSession.SelectedObjects.Count != 1)
+                        Session session = (Session)listSession.SelectedObjects[0];
+
+                        // Check to ensure that the selected item has changed
+                        if (_selectedGuid == session.Guid)
                         {
                             return;
                         }
 
-                        Session session = (Session)listSession.SelectedObjects[0];
+                        _selectedGuid = session.Guid;
+
                         if (session == null)
                         {
                             UserInterface.DisplayErrorMessageBox(this, "Unable to locate session");
@@ -236,16 +327,20 @@ namespace SessionViewer
 
                 listSession.ClearObjects();
 
-                _parser = new Parser();
-                _parser.AutoHttp = toolBtnHttp.Checked;
-                _parser.AutoGzip = _settings.AutoGzip;
                 _parser.IgnoreLocal = toolBtnRemoteOnly.Checked;
                 _parser.BufferInterval = _settings.BufferInterval;
                 _parser.SessionInterval = _settings.SessionInterval;
-                _parser.Complete += OnParser_Complete;
-                _parser.Error += OnParser_Error;
-                _parser.Exclamation += OnParser_Exclamation;
-                _parser.Message += OnParser_Message;
+
+                _parser.ClearParsers();
+                foreach (InterfaceParser parser in this.parsers)
+                {
+                    if (parser.Enabled == false)
+                    {
+                        continue;
+                    }
+
+                    _parser.SetParser(parser);
+                }
 
                 long maxSize = 0;
                 switch (cboMaxSession.SelectedIndex)
@@ -308,6 +403,25 @@ namespace SessionViewer
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
+        private void menuParsers_Click(object sender, EventArgs e)
+        {
+            string name = ((ToolStripMenuItem)sender).Tag.ToString();
+
+            var parser = (from p in this.parsers where p.Name.ToLower() == name.ToLower() select p).SingleOrDefault();
+            if (parser == null)
+            {
+                UserInterface.DisplayErrorMessageBox(this, "Unable to locate parser");
+                return;
+            }
+
+            parser.Enabled = ((ToolStripMenuItem)sender).Checked;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void menuFileExportUrls_Click(object sender, EventArgs e)
         {
             FolderBrowserDialog fbd = new FolderBrowserDialog();
@@ -328,7 +442,7 @@ namespace SessionViewer
                     using (new HourGlass(this))
                     {
                         CsvConfiguration csvConfiguration = new CsvConfiguration();
-                        csvConfiguration.Delimiter = '\t';
+                        csvConfiguration.Delimiter = "\t";
 
                         using (FileStream fileStream = new FileStream(fileName, FileMode.Create, FileAccess.Write))
                         using (StreamWriter streamWriter = new StreamWriter(fileStream))
@@ -343,6 +457,11 @@ namespace SessionViewer
 
                             foreach (Session session in listSession.Objects)
                             {
+                                if (File.Exists(System.IO.Path.Combine(_outputPath, session.Guid + ".urls")) == false)
+                                {
+                                    continue;
+                                }
+
                                 string[] urls = File.ReadAllLines(System.IO.Path.Combine(_outputPath, session.Guid + ".urls"));
                                 foreach (string url in urls)
                                 {
@@ -392,8 +511,7 @@ namespace SessionViewer
         /// <param name="e"></param>
         private void menuToolsOptions_Click(object sender, EventArgs e)
         {
-            using (FormOptions formOptions = new FormOptions(_settings.AutoGzip, 
-                                                             _settings.BufferInterval, 
+            using (FormOptions formOptions = new FormOptions(_settings.BufferInterval, 
                                                              _settings.SessionInterval))
             {
                 if (formOptions.ShowDialog(this) == DialogResult.Cancel)
@@ -401,13 +519,11 @@ namespace SessionViewer
                     return;
                 }
 
-                _settings.AutoGzip = formOptions.AutoGzip;
                 _settings.BufferInterval = formOptions.BufferInterval;
                 _settings.SessionInterval = formOptions.SessionInterval;
 
                 if (_parser != null)
                 {
-                    _parser.AutoGzip = formOptions.AutoGzip;
                     _parser.BufferInterval = formOptions.BufferInterval;
                     _parser.SessionInterval = formOptions.SessionInterval;
                 }
@@ -443,7 +559,6 @@ namespace SessionViewer
                 }
             }
 
-            _parser.AutoGzip = _settings.AutoGzip;
             _parser.BufferInterval = _settings.BufferInterval;
             _parser.SessionInterval = _settings.SessionInterval;
         }
@@ -455,6 +570,11 @@ namespace SessionViewer
         /// <param name="e"></param>
         private void FormMain_FormClosing(object sender, FormClosingEventArgs e)
         {
+            if (_parser.IsRunning == true)
+            {
+                _parser.Stop();
+            }
+
             _settings.FormLocation = base.Location;
             _settings.FormSize = base.Size;
             _settings.FormState = base.WindowState;
@@ -531,7 +651,7 @@ namespace SessionViewer
                         }
                     }  
 
-                    listSession.ClearObjects();
+                    //listSession.ClearObjects();
                     listSession.SetObjects(sessions);
 
                     if (listSession.Items.Count > 0)
@@ -583,36 +703,73 @@ namespace SessionViewer
                                 return;
                             }
 
-                            byte[] temp = File.ReadAllBytes(System.IO.Path.Combine(_outputPath, session.Guid + ".bin"));
+                            string filePath = System.IO.Path.Combine(_outputPath, session.Guid.Substring(0, 2), session.Guid + ".bin");
 
+                            if (File.Exists(filePath) == false)
+                            {
+                                UserInterface.DisplayErrorMessageBox(this, "Session data file does not exist: " + filePath);
+                                return;
+                            }
+
+                            byte[] temp = File.ReadAllBytes(filePath);
                             DynamicByteProvider dynamicByteProvider = new DynamicByteProvider(temp);
                             hexBox.ByteProvider = dynamicByteProvider;
 
                             temp = woanware.Text.ReplaceNulls(temp);
 
-                            // Colourised (HTML)
-                            webControl.DocumentText = File.ReadAllText(System.IO.Path.Combine(_outputPath, session.Guid + ".html"));
+                            FileInfo fileInfo = new FileInfo(filePath);
 
-                            if (File.Exists(System.IO.Path.Combine(_outputPath, session.Guid + ".txt")) == true)
+                            // Colourised (HTML)
+                            if (fileInfo.AlternateDataStreamExists("html") == true)
                             {
-                                // ASCII
-                                txtSession.Text = File.ReadAllText(System.IO.Path.Combine(_outputPath, session.Guid + ".txt"));
-                                txtSession.ScrollToTop();
+                                AlternateDataStreamInfo ads = fileInfo.GetAlternateDataStream("html", FileMode.Open);
+                                using (TextReader reader = ads.OpenText())
+                                {
+                                    webControl.DocumentText = reader.ReadToEnd();
+                                }
                             }
                             else
                             {
-                                // ASCII
+                                webControl.DocumentText = string.Empty;
+                            }
+
+                            // ASCII
+                            if (fileInfo.AlternateDataStreamExists("txt") == true)
+                            {
+                                AlternateDataStreamInfo ads = fileInfo.GetAlternateDataStream("txt", FileMode.Open);
+                                using (TextReader reader = ads.OpenText())
+                                {
+
+                                    txtSession.Text = reader.ReadToEnd();
+                                    txtSession.ScrollToTop();
+                                }
+                            }
+                            else
+                            {
                                 txtSession.Text = ASCIIEncoding.ASCII.GetString(temp);
                                 txtSession.ScrollToTop();
                             }
 
-                            txtUrls.Text = File.ReadAllText(System.IO.Path.Combine(_outputPath, session.Guid + ".info"));
-                            txtUrls.ScrollToTop();
+                            // Info
+                            if (fileInfo.AlternateDataStreamExists("info") == true)
+                            {
+                                AlternateDataStreamInfo ads = fileInfo.GetAlternateDataStream("info", FileMode.Open);
+                                using (TextReader reader = ads.OpenText())
+                                {
+                                    txtInfo.Text = reader.ReadToEnd();
+                                    txtInfo.ScrollToTop();
+                                }
+                            }
+                            else
+                            {
+                                txtInfo.Text = string.Empty;
+                                txtInfo.ScrollToTop();
+                            }
                         }
                     }
                     catch (Exception ex)
                     {
-
+                        this.Log().Error(ex.ToString());            
                     }
                 };
 
@@ -624,6 +781,7 @@ namespace SessionViewer
                 {
                     methodInvoker.Invoke();
                 }
+
             })).Start();
         }
 
@@ -732,19 +890,67 @@ namespace SessionViewer
                 return;
             }
 
-            if (temp.IsGzipped == false)
-            {
-                contextDecodeGzip.Enabled = false;
-                return;
-            }
-
-            if (temp.IsChunked == true)
-            {
-                contextDecodeGzip.Enabled = false;
-                return;
-            }
-
             contextDecodeGzip.Enabled = true;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void contextDecodeGzip_Click(object sender, EventArgs e)
+        {
+            (new Thread(() =>
+            {
+                MethodInvoker methodInvoker = delegate
+                {
+                    using (new HourGlass(this))
+                    {
+                        Session temp = (Session)listSession.SelectedObjects[0];
+                        if (temp == null)
+                        {
+                            contextDecodeGzip.Enabled = false;
+                            return;
+                        }
+
+                        if (temp == null)
+                        {
+                            UserInterface.DisplayErrorMessageBox(this, "Unable to locate session");
+                            return;
+                        }
+
+                        var httpParser = new HttpParser();
+                        httpParser.Process(this._outputPath, temp);
+                        LoadSession(temp);
+
+                        using (DbConnection connection = Db.GetOpenConnection(this._outputPath))
+                        using (var db = new NPoco.Database(connection, NPoco.DatabaseType.SQLCe))
+                        {
+                            try
+                            {
+                                var session = db.SingleOrDefaultById<Session>(temp.Id);
+                                if (session != null)
+                                {
+                                    listSession.RefreshObject(session);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                UserInterface.DisplayErrorMessageBox(this, "An error occurred whilst retreiving the sessions details: " + ex.Message);
+                            }
+                        }  
+                    }
+                };
+
+                if (this.InvokeRequired == true)
+                {
+                    this.BeginInvoke(methodInvoker);
+                }
+                else
+                {
+                    methodInvoker.Invoke();
+                }
+            })).Start();
         }
 
         /// <summary>
@@ -856,7 +1062,7 @@ namespace SessionViewer
             var unique = sessions.Select(s => s.SrcIpText).Distinct();
 
             CsvConfiguration csvConfiguration = new CsvConfiguration();
-            csvConfiguration.Delimiter = '\t';
+            csvConfiguration.Delimiter = "\t";
 
             using (FileStream fileStream = new FileStream(saveFileDialog.FileName, FileMode.Append, FileAccess.Write))
             using (StreamWriter streamWriter = new StreamWriter(fileStream))
@@ -892,7 +1098,7 @@ namespace SessionViewer
             var unique = sessions.Select(s => s.DstIpText).Distinct();
 
             CsvConfiguration csvConfiguration = new CsvConfiguration();
-            csvConfiguration.Delimiter = '\t';
+            csvConfiguration.Delimiter = "\t";
 
             using (FileStream fileStream = new FileStream(saveFileDialog.FileName, FileMode.Append, FileAccess.Write))
             using (StreamWriter streamWriter = new StreamWriter(fileStream))
@@ -907,65 +1113,6 @@ namespace SessionViewer
                     csvWriter.NextRecord();
                 }
             }
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void contextDecodeGzip_Click(object sender, EventArgs e)
-        {
-            if (listSession.SelectedObjects.Count != 1)
-            {
-                contextDecodeGzip.Enabled = false;
-                return;
-            }
-
-            Session temp = (Session)listSession.SelectedObjects[0];
-            if (temp == null)
-            {
-                contextDecodeGzip.Enabled = false;
-                return;
-            }
-
-            if (temp.IsGzipped == false)
-            {
-                contextDecodeGzip.Enabled = false;
-                return;
-            }
-
-            (new Thread(() =>
-            {
-                MethodInvoker methodInvoker = delegate
-                {
-                    using (new HourGlass(this))
-                    {
-                        if (temp == null)
-                        {
-                            UserInterface.DisplayErrorMessageBox(this, "Unable to locate session");
-                            return;
-                        }
-
-                        if (Functions.GzipDecodeSession(_outputPath, temp.Guid) == false)
-                        {
-                            UserInterface.DisplayErrorMessageBox(this, "Unable to gzip");
-                            return; 
-                        }
-
-                        LoadSession(temp);
-                    }
-                };
-
-                if (this.InvokeRequired == true)
-                {
-                    this.BeginInvoke(methodInvoker);
-                }
-                else
-                {
-                    methodInvoker.Invoke();
-                }
-            })).Start();
         }
         #endregion    
 
@@ -990,5 +1137,33 @@ namespace SessionViewer
             menuFileOpen_Click(this, new EventArgs());
         }
         #endregion
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void menuProcessorsSmtp_Click(object sender, EventArgs e)
+        {
+            FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog();
+            folderBrowserDialog.Description = "Select the output folder";
+
+            if (folderBrowserDialog.ShowDialog(this) == System.Windows.Forms.DialogResult.Cancel)
+            {
+                return;
+            }
+
+            string outputFolder = folderBrowserDialog.SelectedPath;
+
+            _hourGlass = new HourGlass(this);
+            var processor = (from p in this.extractors where p.Name.ToLower() == "smtp" select p).SingleOrDefault();
+            if (processor == null)
+            {
+                UserInterface.DisplayErrorMessageBox(this, "Unable to locate extractor");
+                return;
+            }
+            
+            processor.Run((ArrayList)listSession.Objects, _outputPath, outputFolder);
+        }
     }
 }

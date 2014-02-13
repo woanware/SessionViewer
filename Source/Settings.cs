@@ -18,8 +18,6 @@ namespace SessionViewer
         public Point FormLocation { get; set; }
         public Size FormSize { get; set; }
         public FormWindowState FormState { get; set; }
-        public bool AutoGzip { get; set; }
-        public bool AutoHttp { get; set; }
         public int BufferInterval { get; set; }
         public int SessionInterval { get; set; }
         #endregion
@@ -30,8 +28,6 @@ namespace SessionViewer
         /// </summary>
         public Settings()
         {
-            AutoGzip = true;
-            AutoHttp = true;
             BufferInterval = 10;
             SessionInterval = 5;
         }
@@ -62,8 +58,6 @@ namespace SessionViewer
                     FormLocation = settings.FormLocation;
                     FormSize = settings.FormSize;
                     FormState = settings.FormState;
-                    AutoGzip = settings.AutoGzip;
-                    AutoHttp = settings.AutoHttp;
                     BufferInterval = settings.BufferInterval;
                     SessionInterval = settings.SessionInterval;
                     return string.Empty;

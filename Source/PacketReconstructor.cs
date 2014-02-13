@@ -1,13 +1,12 @@
-﻿using System;
+﻿using PcapDotNet.Packets.IpV4;
+using PcapDotNet.Packets.Transport;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Web;
-using PcapDotNet.Packets.IpV4;
-using PcapDotNet.Packets.Transport;
-using PcapDotNet.Packets.Http;
+using Trinet.Core.IO.Ntfs;
 
 // Translated from the file follow.c from WireShark source code
 // the code can be found at: http://www.wireshark.org/download.html
@@ -49,34 +48,14 @@ namespace SessionViewer
         private uint[] _tcpPort = new uint[2];
         public DateTime? TimestampFirstPacket { get; set; }
         public DateTime? TimestampLastPacket { get; set; }
-        //private FileStream _dataFileHex = null;
-        //private FileStream _dataFileHtml = null;
-        //private FileStream _dataFileText = null;
         private bool _lastPacketOutbound = true;
         public long DataSize { get; private set; }
-        private Regex _regexGzip;
-        private Regex _regexChunked;
-        //private Regex _regexHttp;
-        //private Regex _regexHost;
-        //private Regex _regexMethod;
-        //private Regex _regexLink;
-       //private int _packetCount;
-        public bool IsGzipped { get; private set; }
         public bool HasFin { get; private set; }
-        public bool IsChunked { get; private set; }
-        public bool IsHttp { get; private set; }
-        private bool _haveHttpHost;
-        //public string HttpHost { get; private set; }
-        //private List<string> _httpMethods;
-        //private List<string> _httpUrls;
-        private bool _autoHttp;
-        private bool _autoGzip;
         private long _maxSize;
-        private FileStream _storageHex = null;
+        private FileStream _storage = null;
         private FileStream _storageHtml = null;
-        private FileStream _storageInfo = null;
-        //private Storage _storage;
         private string _outputPath;
+        private List<InterfaceParser> _packetParsers;
         #endregion
 
         /// <summary>
@@ -87,31 +66,59 @@ namespace SessionViewer
         /// <param name="autoGzip"></param>
         /// <param name="maxSize"></param>
         public PacketReconstructor(string outputPath, 
-                                   bool autoHttp,
-                                   bool autoGzip,
                                    long maxSize)
         {
             _outputPath = outputPath;
-            _autoHttp = autoHttp;
-            _autoGzip = autoGzip;
             _maxSize = maxSize;
 
             this.Guid = System.Guid.NewGuid().ToString();
-            ResetTcpReassembly();
+            //ResetTcpReassembly();
 
-            //HttpHost = string.Empty;
-            _regexGzip = new Regex(@"^content-encoding:\s*gzip", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
-            _regexChunked = new Regex(@"^transfer-encoding:\s*chunked", RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
-            //_regexHost = new Regex(@"^Host:\s*(.*)", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Multiline);
-            //_regexMethod = new Regex(@"^(GET|HEAD|POST|DELETE|OPTIONS|PUT|TRACE|TRACK)\s+?([http://|/].*)HTTP/1\.[01]", RegexOptions.Compiled);
-            //_regexLink = new Regex(@"<a href=[""|'](.*)[""|']>.*?</a>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            _packetParsers = new List<InterfaceParser>();
 
-            //_httpMethods = new List<string>();
+            if (Directory.Exists(Path.Combine(_outputPath, Guid.Substring(0,2))) == false)
+            {
+                woanware.IO.CreateDirectory(Path.Combine(_outputPath, Guid.Substring(0,2)));
+            }
 
-            _storageHex = new System.IO.FileStream(Path.Combine(_outputPath, Guid + ".bin"), System.IO.FileMode.Create);
-            //_storageInfo= new System.IO.FileStream(Path.Combine(_outputPath, Guid + ".urls"), System.IO.FileMode.Create);
-            _storageHtml = new System.IO.FileStream(Path.Combine(_outputPath, Guid + ".html"), System.IO.FileMode.Create);
-            Functions.WriteToFileStream(_storageHtml, Global.HTML_HEADER);
+            //if (File.Exists(Path.Combine(_outputPath, Guid.Substring(0, 2), Guid + ".bin")) == false)
+            //{
+            //    File.Create(Path.Combine(_outputPath, Guid.Substring(0, 2), Guid + ".bin"));
+            //}
+
+            _storage = new System.IO.FileStream(Path.Combine(_outputPath, Guid.Substring(0, 2), Guid + ".bin"), System.IO.FileMode.Create);
+
+            FileInfo file = new FileInfo(Path.Combine(_outputPath, Guid.Substring(0, 2), Guid + ".bin"));
+            
+            if (file.AlternateDataStreamExists("html") == false)
+            {
+                _storageHtml = file.GetAlternateDataStream("html").OpenWrite();
+            }
+            else
+            {
+                AlternateDataStreamInfo s = file.GetAlternateDataStream("html", FileMode.Open);
+                _storageHtml = s.OpenWrite();
+            }
+
+            woanware.IO.WriteToFileStream(_storageHtml, Global.HTML_HEADER);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="parsers"></param>
+        public void SetPacketParsers(List<InterfaceParser> parsers)
+        {
+            _packetParsers.AddRange(parsers);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="processor"></param>
+        public void AddPacketProcessor(InterfacePacketParser processor)
+        {
+            _packetParsers.Add(processor);
         }
 
         /// <summary>
@@ -121,9 +128,8 @@ namespace SessionViewer
         {
             try
             {
-                Functions.WriteToFileStream(_storageHtml, Global.HTML_FOOTER);
-                _storageHex.Dispose();
-                //_storageInfo.Dispose();
+                _storage.Dispose();
+                woanware.IO.WriteToFileStream(_storageHtml, Global.HTML_FOOTER);
                 _storageHtml.Dispose();
             }
             catch (Exception) {}
@@ -145,33 +151,65 @@ namespace SessionViewer
                     }
                 }
 
+                ushort sourcePort = 0;
+                ushort destinationPort = 0;
+                
                 IpV4Datagram ip = packet.Ethernet.IpV4;
-                TcpDatagram tcp = ip.Tcp;
+                if (ip.Protocol == IpV4Protocol.Tcp)
+                {
+                    TcpDatagram tcp = (TcpDatagram)ip.Tcp;
 
-                if (tcp.IsFin == true)
-                {
-                    HasFin = true;
-                }
+                    sourcePort = tcp.SourcePort;
+                    destinationPort = tcp.DestinationPort;
+                    
+                    // If the payload length is zero bail out
+                    ulong length = (ulong)(tcp.Length - tcp.HeaderLength);
+                    if (length == 0)
+                    {
+                       return;
+                    }
 
-                if (tcp.HeaderLength > tcp.Length)
-                {
-                    return;
+                    uint acknowledged = Convert.ToUInt32(tcp.IsAcknowledgment);
+                    ReassembleTcp((ulong)tcp.SequenceNumber,
+                                  acknowledged,
+                                  length,
+                                  tcp.Payload.ToMemoryStream().ToArray(),
+                                  (ulong)tcp.Payload.Length,
+                                  tcp.IsSynchronize,
+                                  ip.Source.ToValue(),
+                                  ip.Destination.ToValue(),
+                                  (uint)tcp.SourcePort,
+                                  (uint)tcp.DestinationPort,
+                                  packet.Timestamp);
                 }
+                else if (ip.Protocol == IpV4Protocol.Udp)
+                {
+                    UdpDatagram udp = (UdpDatagram)ip.Udp;
 
-                // If the payload length is zero bail out
-                ulong length = (ulong)(tcp.Length - tcp.HeaderLength);
-                if (length == 0)
-                {
-                    return;
-                }
+                    sourcePort = udp.SourcePort;
+                    destinationPort = udp.DestinationPort;
 
-                if (tcp.Http.IsRequest == true)
-                {
-                    IsHttp = true;
-                }
-                else if (tcp.Http.IsResponse == true)
-                {
-                    IsHttp = true;
+                    // If the payload length is zero bail out
+                    ulong length = (ulong)(udp.Length);
+                    if (length == 0)
+                    {
+                        return;
+                    }
+
+                    int index = ReassembleUdp(length,
+                                              udp.Payload.ToMemoryStream().ToArray(),
+                                              (ulong)udp.Payload.Length,
+                                              ip.Source.ToValue(),
+                                              ip.Destination.ToValue(),
+                                              (uint)udp.SourcePort,
+                                              (uint)udp.DestinationPort,
+                                              packet.Timestamp);
+
+                    // We assume that if a response e.g index 1 has been received then the session is complete
+                    if (index == 1)
+                    {
+                        HasFin = true;
+                    }
                 }
 
                 if (TimestampFirstPacket == null)
@@ -180,21 +218,23 @@ namespace SessionViewer
                 }
 
                 TimestampLastPacket = packet.Timestamp;
-                
-                ReassembleTcp((ulong)tcp.SequenceNumber, 
-                               length,
-                               tcp.Payload.ToMemoryStream().ToArray(), 
-                               (ulong)tcp.Payload.Length, 
-                               tcp.IsSynchronize,
-                               ip.Source.ToValue(), 
-                               ip.Destination.ToValue(),
-                               (uint)tcp.SourcePort, 
-                               (uint)tcp.DestinationPort, 
-                               packet.Timestamp);
+
+                // Now run any applicable parsers
+                var temp = from p in _packetParsers where (p.Port == sourcePort | p.Port == destinationPort) & p.Type == ParserType.Packet select p;
+                foreach (InterfaceParser parser in temp)
+                {
+                    if (parser.Enabled == false)
+                    {
+                        continue;
+                    }
+
+                    InterfacePacketParser packetParser = (InterfacePacketParser)parser;
+                    packetParser.Process(_storage, _outputPath, ip);
+                }
             }
             catch (Exception ex )
             {
-                //OnError(ex.Message);
+                this.Log().Error(ex.ToString());            
             }
         }
 
@@ -218,8 +258,6 @@ namespace SessionViewer
         {
             try
             {
-                //byte[] temp = woanware.Text.ReplaceNulls(data);
-
                 // Ignore empty packets
                 if (data.Length == 0)
                 {
@@ -232,7 +270,11 @@ namespace SessionViewer
                     {
                         return;
                     }
-                }
+                }                
+
+                DataSize += data.Length;
+
+                woanware.IO.WriteToFileStream(_storage, data);
 
                 bool isOutBound = false;
                 if (index == 0)
@@ -240,72 +282,11 @@ namespace SessionViewer
                     isOutBound = true;
                 }
 
-                DataSize += data.Length;
+               // string presanitised = woanware.Text.ByteArrayToString((byte[])data, woanware.Text.EncodingType.Ascii);
 
-                Functions.WriteToFileStream(_storageHex, data);
+                string sanitised = System.Text.Encoding.ASCII.GetString((byte[])data);
+                //string sanitised = rgx.Replace(woanware.Text.ReplaceNulls(presanitised), ".");
 
-                if (_lastPacketOutbound != isOutBound)
-                {
-                    //Functions.WriteToFileStream(_storageHex, "\r\n");
-                }
-
-                // Remove unprintable characters
-                Regex rgx = new Regex(@"[^\u0000-\u007F]");
-                string presanitised = woanware.Text.ByteArrayToString((byte[])data, woanware.Text.EncodingType.Ascii);
-                string sanitised = rgx.Replace(woanware.Text.ReplaceNulls(presanitised), ".");
-
-                if (IsHttp == true)
-                {
-                    if (IsGzipped == false)
-                    {
-                        Match match = _regexGzip.Match(sanitised);
-                        IsGzipped = match.Success;
-                    }
-
-                    if (IsChunked == false)
-                    {
-                        Match match = _regexChunked.Match(sanitised);
-                        IsChunked = match.Success;
-                    }
-
-                    if (_autoHttp == true)
-                    {
-                        //if (_haveHttpHost == false)
-                        //{
-                        //    Match match = _regexHost.Match(sanitised);
-                        //    if (match.Success == true)
-                        //    {
-                        //        _haveHttpHost = true;
-                        //        HttpHost = match.Groups[1].Value.Trim();
-                        //    }
-                        //}
-
-                        //Match matchMethod = _regexMethod.Match(sanitised);
-                        //if (matchMethod.Success == true)
-                        //{
-                        //    if (_httpMethods.Contains(matchMethod.Groups[1].Value) == false)
-                        //    {
-                        //        _httpMethods.Add(matchMethod.Groups[1].Value);
-                        //    }
-
-                        //    if (matchMethod.Groups[2].Value.Trim().Length > 0)
-                        //    {
-                        //        Functions.WriteToFileStream(_storageInfo, "URL: " + matchMethod.Groups[2].Value + Environment.NewLine);
-                        //    }
-                        //}
-
-                        //MatchCollection matchesLink = _regexLink.Matches(sanitised);
-                        //if (matchesLink.Count > 0)
-                        //{
-                        //    foreach (Match match in matchesLink)
-                        //    {
-                        //        Functions.WriteToFileStream(_storageInfo, "LINK: " + match.Groups[1].Value + Environment.NewLine);
-                        //    }
-                        //}
-                    }
-                }
-
-                // HTML
                 StringBuilder html = new StringBuilder();
                 if (isOutBound == true)
                 {
@@ -325,7 +306,7 @@ namespace SessionViewer
 
                     sanitised = sanitised.Trim();
 
-                    Functions.WriteToFileStream(_storageHtml, @"<br>");
+                    woanware.IO.WriteToFileStream(_storageHtml, @"<br>");
                     _lastPacketOutbound = isOutBound;
                 }
 
@@ -338,11 +319,11 @@ namespace SessionViewer
                 tempHtml = tempHtml.Replace("\r\n", "<br>");
                 html.Append(tempHtml);
                 html.Append(@"</font>");
-                Functions.WriteToFileStream(_storageHtml, html.ToString());
+                woanware.IO.WriteToFileStream(_storageHtml, html.ToString());
             }
             catch (Exception ex) 
             {
-               // OnError(ex.Message);
+                this.Log().Error(ex.ToString());
             }
         }
 
@@ -359,7 +340,89 @@ namespace SessionViewer
         /// <param name="srcport">The source port</param>
         /// <param name="dstport">The destination port</param>
         /// <param name="timestamp">Packet timestamp</param>
-        private void ReassembleTcp(ulong sequence, 
+        private int ReassembleUdp(ulong length,
+                                   byte[] data,
+                                   ulong data_length,
+                                   long net_src,
+                                   long net_dst,
+                                   uint srcport,
+                                   uint dstport,
+                                   DateTime timestamp)
+        {
+            try
+            {
+                long srcx, dstx;
+                int src_index, j;
+
+                src_index = -1;
+
+                /* Now check if the packet is for this connection. */
+                srcx = net_src;
+                dstx = net_dst;
+
+                /* Check to see if we have seen this source IP and port before.
+                (Yes, we have to check both source IP and port; the connection
+                might be between two different ports on the same machine.) */
+                for (j = 0; j < 2; j++)
+                {
+                    if (_srcAddr[j] == srcx && _srcPort[j] == srcport)
+                    {
+                        src_index = j;
+                        //break;
+                    }
+                }
+                /* we didn't find it if src_index == -1 */
+                if (src_index < 0)
+                {
+                    /* assign it to a src_index and get going */
+                    for (j = 0; j < 2; j++)
+                    {
+                        if (_srcPort[j] == 0)
+                        {
+                            _srcAddr[j] = srcx;
+                            _srcPort[j] = srcport;
+                            src_index = j;
+                            break;
+                        }
+                    }
+                }
+                if (src_index < 0)
+                {
+                    throw new Exception("Too many addresses!");
+                }
+
+                SavePacketData(net_src,
+                               net_dst,
+                               srcport,
+                               dstport,
+                               src_index,
+                               data,
+                               timestamp);
+
+                return src_index;
+            }
+            catch (Exception ex)
+            {
+                this.Log().Error(ex.ToString());            
+                return -1;
+            }
+        }
+
+        /// <summary>
+        /// Reconstructs the tcp session
+        /// </summary>
+        /// <param name="sequence">Sequence number of the tcp packet</param>
+        /// <param name="length">The size of the original packet data</param>
+        /// <param name="data">The captured data</param>
+        /// <param name="data_length">The length of the captured data</param>
+        /// <param name="synflag"></param>
+        /// <param name="net_src">The source ip address</param>
+        /// <param name="net_dst">The destination ip address</param>
+        /// <param name="srcport">The source port</param>
+        /// <param name="dstport">The destination port</param>
+        /// <param name="timestamp">Packet timestamp</param>
+        private void ReassembleTcp(ulong sequence,
+                                   uint acknowledgement,
                                    ulong length, 
                                    byte[] data,
                                    ulong data_length, 
@@ -392,7 +455,7 @@ namespace SessionViewer
                     if (_srcAddr[j] == srcx && _srcPort[j] == srcport)
                     {
                         src_index = j;
-                        break;
+                        //break;
                     }
                 }
                 /* we didn't find it if src_index == -1 */
@@ -411,6 +474,7 @@ namespace SessionViewer
                         }
                     }
                 }
+
                 if (src_index < 0)
                 {
                     throw new Exception("Too many addresses!");
@@ -428,7 +492,8 @@ namespace SessionViewer
                                          srcport,
                                          dstport,
                                          1 - src_index,
-                                         timestamp));
+                                         timestamp,
+                                         acknowledgement)) ;
                 }
 
                 /* now that we have filed away the srcs, lets get the sequence number stuff figured out */
@@ -450,6 +515,7 @@ namespace SessionViewer
                                    timestamp);
                     return;
                 }
+
                 /* if we are here, we have already seen this src, let's
                 try and figure out if this packet is in the right place */
                 if (sequence < _seq[src_index])
@@ -476,10 +542,12 @@ namespace SessionViewer
                         {
                             data_length -= new_len;
                             byte[] tmpData = new byte[data_length];
-                            for (ulong i = 0; i < data_length; i++)
-                            {
-                                tmpData[i] = data[i + new_len];
-                            }
+
+                            Buffer.BlockCopy(data, (int)new_len, tmpData, 0, (int)data_length);
+                            //for (ulong i = 0; i < data_length; i++)
+                            //{
+                            //    tmpData[i] = data[i + new_len];
+                            //}
 
                             data = tmpData;
                         }
@@ -493,7 +561,11 @@ namespace SessionViewer
                 {
                     /* right on time */
                     _seq[src_index] += length;
-                    if (synflag) _seq[src_index]++;
+                    if (synflag)
+                    {
+                        _seq[src_index]++;
+                    }
+
                     if (data != null)
                     {
                         SavePacketData(net_src, 
@@ -510,7 +582,8 @@ namespace SessionViewer
                                           srcport, 
                                           dstport, 
                                           src_index, 
-                                          timestamp));
+                                          timestamp,
+                                          acknowledgement)) ;
                 }
                 else
                 {
@@ -538,7 +611,7 @@ namespace SessionViewer
             }
             catch (Exception ex)
             {
-                //OnError(ex.Message);
+                this.Log().Error(ex.ToString());            
             }
         } 
 
@@ -551,26 +624,29 @@ namespace SessionViewer
         /// <param name="dstport"></param>
         /// <param name="index"></param>
         /// <param name="timestamp"></param>
+        /// <param name="acknowledged"></param>
         /// <returns></returns>
         private bool CheckFragments(long net_src,
                                     long net_dst,
                                     uint srcport,
                                     uint dstport, 
                                     int index,
-                                    DateTime timestamp)
+                                    DateTime timestamp,
+                                    uint acknowledged)
         {
             try
             {
                 tcp_frag prev = null;
                 tcp_frag current;
                 ulong lowest_seq;
+
                 current = _frags[index];
                 if (current != null)
                 {
                     lowest_seq = current.seq;
                     while (current != null)
                     {
-                        if ((lowest_seq - current.seq) > 0)
+                        if ((lowest_seq > current.seq))
                         {
                             lowest_seq = current.seq;
                         }
@@ -589,33 +665,39 @@ namespace SessionViewer
                                 /* this one has more than we have seen. let's get the
                                  payload that we have not seen. This happens when 
                                  part of this frame has been retransmitted */
-
                                 new_pos = _seq[index] - current.seq;
-
                                 if (current.data_len > new_pos)
                                 {
                                     //sc->dlen = current.data_len - new_pos;
+
+                                    byte[] tmpData = new byte[current.data_len - new_pos];
+
+                                    Buffer.BlockCopy(current.data, (int)new_pos, tmpData, 0, (int)(current.data_len - new_pos));
 
                                     SavePacketData(net_src,
                                                  net_dst,
                                                  srcport,
                                                  dstport,
                                                  index,
-                                                 current.data,
+                                                 tmpData,
                                                  timestamp);
                                 }
 
                                 _seq[index] += (current.len - new_pos);
-                                if (prev != null)
-                                {
-                                    prev.next = current.next;
-                                }
-                                else
-                                {
-                                    _frags[index] = current.next;
-                                }
-                                return true;
                             }
+
+                            /* Remove the fragment from the list as the "new" part of it
+                            * has been processed or its data has been seen already in 
+                            * another packet. */
+                            if (prev != null)
+                            {
+                                prev.next = current.next;
+                            }
+                            else
+                            {
+                                _frags[index] = current.next;
+                            }
+                            return true;
                         }
 
 
@@ -651,13 +733,37 @@ namespace SessionViewer
                         prev = current;
                         current = current.next;
                     }
+
+                    if (acknowledged > lowest_seq)
+                    {
+                        /* There are frames missing in the capture file that were seen
+                         * by the receiving host. Add dummy stream chunk with the data
+                         * "[xxx bytes missing in capture file]".
+                         */
+                        //dummy_str = g_strdup_printf("[%d bytes missing in capture file]",
+                                        //  (int)(lowest_seq - seq[idx]));
+                        //sc->dlen = (guint32)strlen(dummy_str);
+
+                        byte[] dummyData = new byte[(lowest_seq - _seq[index])];
+
+                        SavePacketData(net_src,
+                                       net_dst,
+                                       srcport,
+                                       dstport,
+                                       index,
+                                       dummyData,
+                                       timestamp);
+                       
+                        _seq[index] = lowest_seq;
+                        return true;
+                    }
                 }
                 
                 return false;
             }
             catch (Exception ex) 
             {
-                //OnError(ex.Message);
+                this.Log().Error(ex.ToString());            
                 return false;
             }
         }
@@ -692,23 +798,9 @@ namespace SessionViewer
             }
             catch (Exception ex) 
             {
-                //OnError(ex.Message);
+                this.Log().Error(ex.ToString());            
             }
         }
-
-        //#region Properties
-        ///// <summary>
-        ///// 
-        ///// </summary>
-        //public string HttpMethods
-        //{
-        //    get
-        //    {
-        //        _httpMethods.Sort();
-        //        return string.Join(",", _httpMethods);
-        //    }
-        //}
-        //#endregion
 
         #region Event Methods
         ///// <summary>

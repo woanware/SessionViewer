@@ -29,7 +29,7 @@
     <BootstrapperEnabled>true</BootstrapperEnabled>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <PlatformTarget>x86</PlatformTarget>
+    <PlatformTarget>x64</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -40,7 +40,7 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <PlatformTarget>x86</PlatformTarget>
+    <PlatformTarget>x64</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
@@ -48,6 +48,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup>
     <ApplicationIcon>App.ico</ApplicationIcon>
@@ -59,15 +60,18 @@
     <Reference Include="CsvHelper">
       <HintPath>..\Dependencies\CsvHelper\CsvHelper.dll</HintPath>
     </Reference>
-    <Reference Include="HtmlAgilityPack">
-      <HintPath>..\Dependencies\HtmlAgilityPack\HtmlAgilityPack.dll</HintPath>
-    </Reference>
-    <Reference Include="Ionic.Zlib">
-      <HintPath>..\Dependencies\DotNetZipLib\Ionic.Zlib.dll</HintPath>
-    </Reference>
-    <Reference Include="Network, Version=1.0.1.0, Culture=neutral, processorArchitecture=x86">
+    <Reference Include="GeoIp, Version=1.0.0.0, Culture=neutral, processorArchitecture=AMD64">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\..\Libraries\Network\Source\bin\Release\Network.dll</HintPath>
+      <HintPath>..\Dependencies\GeoIP\GeoIp.dll</HintPath>
+    </Reference>
+    <Reference Include="HtmlParser">
+      <HintPath>..\Dependencies\HtmlParserSharp\HtmlParser.dll</HintPath>
+    </Reference>
+    <Reference Include="MimeKitLite">
+      <HintPath>..\Dependencies\MimeKit\MimeKitLite.dll</HintPath>
+    </Reference>
+    <Reference Include="NLog">
+      <HintPath>..\Dependencies\NLog\NLog.dll</HintPath>
     </Reference>
     <Reference Include="NPoco">
       <HintPath>..\Dependencies\NPoco\NPoco.dll</HintPath>
@@ -95,15 +99,34 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="System.Drawing" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System.Web" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
-    <Reference Include="Utility">
+    <Reference Include="this.Log">
+      <HintPath>..\Dependencies\this.Log\this.Log.dll</HintPath>
+    </Reference>
+    <Reference Include="this.Log-NLog">
+      <HintPath>..\Dependencies\this.Log\this.Log-NLog.dll</HintPath>
+    </Reference>
+    <Reference Include="Trinet.Core.IO.Ntfs">
+      <HintPath>..\Dependencies\Trinet.Core.IO.Ntfs\Trinet.Core.IO.Ntfs.dll</HintPath>
+    </Reference>
+    <Reference Include="Utility, Version=1.0.52.0, Culture=neutral, processorArchitecture=x86">
+      <SpecificVersion>False</SpecificVersion>
       <HintPath>..\Dependencies\woanware\Utility.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Attachment.cs" />
     <Compile Include="Connection.cs" />
+    <Compile Include="Extractors\HttpFileExtractorSig.cs" />
+    <Compile Include="Extractors\HttpFileExtractorHeader.cs" />
+    <Compile Include="Extractors\UrlExtractor.cs" />
+    <Compile Include="Interfaces\InterfaceSessionParser.cs" />
+    <Compile Include="Interfaces\InterfaceParser.cs" />
+    <Compile Include="Interfaces\InterfacePacketParser.cs" />
     <Compile Include="Db.cs" />
     <Compile Include="FormAbout.cs">
       <SubType>Form</SubType>
@@ -131,11 +154,19 @@
     </Compile>
     <Compile Include="Functions.cs" />
     <Compile Include="Global.cs" />
+    <Compile Include="LogExtensions.cs" />
+    <Compile Include="PacketParsers\DnsParser.cs" />
     <Compile Include="PacketReconstructor.cs" />
     <Compile Include="Parser.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Session.cs" />
+    <Compile Include="Interfaces\InterfaceExtractor.cs" />
+    <Compile Include="SessionParser.cs" />
+    <Compile Include="SessionParsers\HttpParser.cs" />
+    <Compile Include="Extractors\SmtpExtractor.cs" />
+    <Compile Include="SessionTask.cs" />
+    <Compile Include="SessionWorker.cs" />
     <Compile Include="Settings.cs" />
     <EmbeddedResource Include="FormAbout.resx">
       <DependentUpon>FormAbout.cs</DependentUpon>
@@ -159,6 +190,10 @@
       <DependentUpon>Resources.resx</DependentUpon>
       <DesignTime>True</DesignTime>
     </Compile>
+    <None Include="NLog.config">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <SubType>Designer</SubType>
+    </None>
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
@@ -170,7 +205,9 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="App.config" />
+    <None Include="App.config">
+      <SubType>Designer</SubType>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.0">
@@ -203,11 +240,12 @@
     <Content Include="App.ico" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\Libraries\IpLookup\Source\IpLookup.csproj">
-      <Project>{ce64f0f7-f3b7-421f-9b4f-c61672ec89fd}</Project>
-      <Name>IpLookup</Name>
+    <ProjectReference Include="..\..\..\..\Libraries\HttpKit\Source\HttpKit.csproj">
+      <Project>{62b0a8cb-dead-4ba9-bfbe-1a1125dfcd12}</Project>
+      <Name>HttpKit</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

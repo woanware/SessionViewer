@@ -1,9 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2012
+# Visual Studio 2013
+VisualStudioVersion = 12.0.21005.1
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SessionViewer", "SessionViewer.csproj", "{36A5E024-ACA2-476A-8488-6DBE153449F1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IpLookup", "..\..\..\..\Libraries\IpLookup\Source\IpLookup.csproj", "{CE64F0F7-F3B7-421F-9B4F-C61672EC89FD}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HttpKit", "..\..\..\..\Libraries\HttpKit\Source\HttpKit.csproj", "{62B0A8CB-DEAD-4BA9-BFBE-1A1125DFCD12}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{1BEB87D4-25B3-4CA0-A712-EE1D80771390}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,10 +19,10 @@ Global
 		{36A5E024-ACA2-476A-8488-6DBE153449F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{36A5E024-ACA2-476A-8488-6DBE153449F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{36A5E024-ACA2-476A-8488-6DBE153449F1}.Release|Any CPU.Build.0 = Release|Any CPU
-		{CE64F0F7-F3B7-421F-9B4F-C61672EC89FD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{CE64F0F7-F3B7-421F-9B4F-C61672EC89FD}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{CE64F0F7-F3B7-421F-9B4F-C61672EC89FD}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{CE64F0F7-F3B7-421F-9B4F-C61672EC89FD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{62B0A8CB-DEAD-4BA9-BFBE-1A1125DFCD12}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{62B0A8CB-DEAD-4BA9-BFBE-1A1125DFCD12}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{62B0A8CB-DEAD-4BA9-BFBE-1A1125DFCD12}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{62B0A8CB-DEAD-4BA9-BFBE-1A1125DFCD12}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

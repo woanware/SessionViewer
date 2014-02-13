@@ -41,6 +41,9 @@
             this.menuFileExit = new System.Windows.Forms.ToolStripMenuItem();
             this.menuTools = new System.Windows.Forms.ToolStripMenuItem();
             this.menuToolsOptions = new System.Windows.Forms.ToolStripMenuItem();
+            this.menuParsers = new System.Windows.Forms.ToolStripMenuItem();
+            this.menuProcessors = new System.Windows.Forms.ToolStripMenuItem();
+            this.menuProcessorsSmtp = new System.Windows.Forms.ToolStripMenuItem();
             this.menuHelp = new System.Windows.Forms.ToolStripMenuItem();
             this.menuHelpHelp = new System.Windows.Forms.ToolStripMenuItem();
             this.menuHelpSep1 = new System.Windows.Forms.ToolStripSeparator();
@@ -49,8 +52,6 @@
             this.toolBtnImport = new System.Windows.Forms.ToolStripButton();
             this.toolBtnOpen = new System.Windows.Forms.ToolStripButton();
             this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
-            this.toolBtnHttp = new System.Windows.Forms.ToolStripButton();
-            this.toolStripSeparator2 = new System.Windows.Forms.ToolStripSeparator();
             this.toolStripLabel1 = new System.Windows.Forms.ToolStripLabel();
             this.cboMaxSession = new System.Windows.Forms.ToolStripComboBox();
             this.toolStripSeparator3 = new System.Windows.Forms.ToolStripSeparator();
@@ -95,7 +96,7 @@
             this.tabPageColourised = new System.Windows.Forms.TabPage();
             this.webControl = new System.Windows.Forms.WebBrowser();
             this.tabPageInfo = new System.Windows.Forms.TabPage();
-            this.txtUrls = new System.Windows.Forms.RichTextBox();
+            this.txtInfo = new System.Windows.Forms.RichTextBox();
             this.menu.SuspendLayout();
             this.toolStrip.SuspendLayout();
             this.statusStrip.SuspendLayout();
@@ -117,6 +118,8 @@
             this.menu.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.menuFile,
             this.menuTools,
+            this.menuParsers,
+            this.menuProcessors,
             this.menuHelp});
             this.menu.Location = new System.Drawing.Point(0, 0);
             this.menu.Name = "menu";
@@ -200,6 +203,27 @@
             this.menuToolsOptions.Text = "Options";
             this.menuToolsOptions.Click += new System.EventHandler(this.menuToolsOptions_Click);
             // 
+            // menuParsers
+            // 
+            this.menuParsers.Name = "menuParsers";
+            this.menuParsers.Size = new System.Drawing.Size(56, 20);
+            this.menuParsers.Text = "Parsers";
+            // 
+            // menuProcessors
+            // 
+            this.menuProcessors.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.menuProcessorsSmtp});
+            this.menuProcessors.Name = "menuProcessors";
+            this.menuProcessors.Size = new System.Drawing.Size(75, 20);
+            this.menuProcessors.Text = "Processors";
+            // 
+            // menuProcessorsSmtp
+            // 
+            this.menuProcessorsSmtp.Name = "menuProcessorsSmtp";
+            this.menuProcessorsSmtp.Size = new System.Drawing.Size(105, 22);
+            this.menuProcessorsSmtp.Text = "SMTP";
+            this.menuProcessorsSmtp.Click += new System.EventHandler(this.menuProcessorsSmtp_Click);
+            // 
             // menuHelp
             // 
             this.menuHelp.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
@@ -235,8 +259,6 @@
             this.toolBtnImport,
             this.toolBtnOpen,
             this.toolStripSeparator1,
-            this.toolBtnHttp,
-            this.toolStripSeparator2,
             this.toolStripLabel1,
             this.cboMaxSession,
             this.toolStripSeparator3,
@@ -272,23 +294,6 @@
             // 
             this.toolStripSeparator1.Name = "toolStripSeparator1";
             this.toolStripSeparator1.Size = new System.Drawing.Size(6, 25);
-            // 
-            // toolBtnHttp
-            // 
-            this.toolBtnHttp.Checked = true;
-            this.toolBtnHttp.CheckOnClick = true;
-            this.toolBtnHttp.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.toolBtnHttp.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.toolBtnHttp.Image = ((System.Drawing.Image)(resources.GetObject("toolBtnHttp.Image")));
-            this.toolBtnHttp.ImageTransparentColor = System.Drawing.Color.Magenta;
-            this.toolBtnHttp.Name = "toolBtnHttp";
-            this.toolBtnHttp.Size = new System.Drawing.Size(23, 22);
-            this.toolBtnHttp.Text = "HTTP";
-            // 
-            // toolStripSeparator2
-            // 
-            this.toolStripSeparator2.Name = "toolStripSeparator2";
-            this.toolStripSeparator2.Size = new System.Drawing.Size(6, 25);
             // 
             // toolStripLabel1
             // 
@@ -398,7 +403,7 @@
             this.listSession.UseFiltering = true;
             this.listSession.View = System.Windows.Forms.View.Details;
             this.listSession.VirtualMode = true;
-            this.listSession.SelectedIndexChanged += new System.EventHandler(this.listSession_SelectedIndexChanged);
+            this.listSession.SelectionChanged += new System.EventHandler(this.listSession_SelectionChanged);
             // 
             // olvcSourceIp
             // 
@@ -476,7 +481,7 @@
             this.contextDecode});
             this.context.Name = "context";
             this.context.RenderMode = System.Windows.Forms.ToolStripRenderMode.System;
-            this.context.Size = new System.Drawing.Size(115, 76);
+            this.context.Size = new System.Drawing.Size(153, 98);
             this.context.Opening += new System.ComponentModel.CancelEventHandler(this.context_Opening);
             // 
             // contextCopy
@@ -492,7 +497,7 @@
             this.contextCopyTimestampFirstPacket,
             this.contextCopyTimestampLastPacket});
             this.contextCopy.Name = "contextCopy";
-            this.contextCopy.Size = new System.Drawing.Size(114, 22);
+            this.contextCopy.Size = new System.Drawing.Size(152, 22);
             this.contextCopy.Text = "Copy";
             // 
             // contextCopySourceIp
@@ -564,7 +569,7 @@
             this.contextExportUniqueSourceIp,
             this.contextExportDestinationIp});
             this.contextExport.Name = "contextExport";
-            this.contextExport.Size = new System.Drawing.Size(114, 22);
+            this.contextExport.Size = new System.Drawing.Size(152, 22);
             this.contextExport.Text = "Export";
             // 
             // contextExportUniqueSourceIp
@@ -584,21 +589,21 @@
             // contextSep1
             // 
             this.contextSep1.Name = "contextSep1";
-            this.contextSep1.Size = new System.Drawing.Size(111, 6);
+            this.contextSep1.Size = new System.Drawing.Size(149, 6);
             // 
             // contextDecode
             // 
             this.contextDecode.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.contextDecodeGzip});
             this.contextDecode.Name = "contextDecode";
-            this.contextDecode.Size = new System.Drawing.Size(114, 22);
+            this.contextDecode.Size = new System.Drawing.Size(152, 22);
             this.contextDecode.Text = "Decode";
             // 
             // contextDecodeGzip
             // 
             this.contextDecodeGzip.Name = "contextDecodeGzip";
-            this.contextDecodeGzip.Size = new System.Drawing.Size(96, 22);
-            this.contextDecodeGzip.Text = "gzip";
+            this.contextDecodeGzip.Size = new System.Drawing.Size(152, 22);
+            this.contextDecodeGzip.Text = "GZIP";
             this.contextDecodeGzip.Click += new System.EventHandler(this.contextDecodeGzip_Click);
             // 
             // tabControl
@@ -639,10 +644,10 @@
             // tabPageHex
             // 
             this.tabPageHex.Controls.Add(this.hexBox);
-            this.tabPageHex.Location = new System.Drawing.Point(4, 24);
+            this.tabPageHex.Location = new System.Drawing.Point(4, 22);
             this.tabPageHex.Name = "tabPageHex";
             this.tabPageHex.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPageHex.Size = new System.Drawing.Size(262, 262);
+            this.tabPageHex.Size = new System.Drawing.Size(262, 264);
             this.tabPageHex.TabIndex = 1;
             this.tabPageHex.Text = "HEX";
             this.tabPageHex.UseVisualStyleBackColor = true;
@@ -657,7 +662,7 @@
             this.hexBox.Name = "hexBox";
             this.hexBox.ReadOnly = true;
             this.hexBox.ShadowSelectionColor = System.Drawing.Color.FromArgb(((int)(((byte)(100)))), ((int)(((byte)(60)))), ((int)(((byte)(188)))), ((int)(((byte)(255)))));
-            this.hexBox.Size = new System.Drawing.Size(256, 256);
+            this.hexBox.Size = new System.Drawing.Size(256, 258);
             this.hexBox.StringViewVisible = true;
             this.hexBox.TabIndex = 0;
             this.hexBox.UseFixedBytesPerLine = true;
@@ -666,10 +671,10 @@
             // tabPageColourised
             // 
             this.tabPageColourised.Controls.Add(this.webControl);
-            this.tabPageColourised.Location = new System.Drawing.Point(4, 24);
+            this.tabPageColourised.Location = new System.Drawing.Point(4, 22);
             this.tabPageColourised.Name = "tabPageColourised";
             this.tabPageColourised.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPageColourised.Size = new System.Drawing.Size(262, 262);
+            this.tabPageColourised.Size = new System.Drawing.Size(262, 264);
             this.tabPageColourised.TabIndex = 2;
             this.tabPageColourised.Text = "Colourised";
             this.tabPageColourised.UseVisualStyleBackColor = true;
@@ -682,31 +687,31 @@
             this.webControl.MinimumSize = new System.Drawing.Size(20, 20);
             this.webControl.Name = "webControl";
             this.webControl.ScriptErrorsSuppressed = true;
-            this.webControl.Size = new System.Drawing.Size(256, 256);
+            this.webControl.Size = new System.Drawing.Size(256, 258);
             this.webControl.TabIndex = 1;
             this.webControl.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.webControl_PreviewKeyDown);
             // 
             // tabPageInfo
             // 
-            this.tabPageInfo.Controls.Add(this.txtUrls);
-            this.tabPageInfo.Location = new System.Drawing.Point(4, 24);
+            this.tabPageInfo.Controls.Add(this.txtInfo);
+            this.tabPageInfo.Location = new System.Drawing.Point(4, 22);
             this.tabPageInfo.Name = "tabPageInfo";
             this.tabPageInfo.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPageInfo.Size = new System.Drawing.Size(262, 262);
+            this.tabPageInfo.Size = new System.Drawing.Size(262, 264);
             this.tabPageInfo.TabIndex = 3;
             this.tabPageInfo.Text = "Info";
             this.tabPageInfo.UseVisualStyleBackColor = true;
             // 
-            // txtUrls
+            // txtInfo
             // 
-            this.txtUrls.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.txtUrls.Font = new System.Drawing.Font("Consolas", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.txtUrls.Location = new System.Drawing.Point(3, 3);
-            this.txtUrls.Name = "txtUrls";
-            this.txtUrls.ReadOnly = true;
-            this.txtUrls.Size = new System.Drawing.Size(256, 256);
-            this.txtUrls.TabIndex = 1;
-            this.txtUrls.Text = "";
+            this.txtInfo.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.txtInfo.Font = new System.Drawing.Font("Consolas", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.txtInfo.Location = new System.Drawing.Point(3, 3);
+            this.txtInfo.Name = "txtInfo";
+            this.txtInfo.ReadOnly = true;
+            this.txtInfo.Size = new System.Drawing.Size(256, 258);
+            this.txtInfo.TabIndex = 1;
+            this.txtInfo.Text = "";
             // 
             // FormMain
             // 
@@ -796,14 +801,9 @@
         private System.Windows.Forms.ToolStripMenuItem contextExportUniqueSourceIp;
         private System.Windows.Forms.ToolStripMenuItem contextExportDestinationIp;
         private BrightIdeasSoftware.OLVColumn olvcHttpMethods;
-        private System.Windows.Forms.ToolStripSeparator contextSep1;
-        private System.Windows.Forms.ToolStripMenuItem contextDecode;
-        private System.Windows.Forms.ToolStripMenuItem contextDecodeGzip;
         private System.Windows.Forms.ToolStripMenuItem menuTools;
         private System.Windows.Forms.ToolStripMenuItem menuToolsOptions;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator1;
-        private System.Windows.Forms.ToolStripButton toolBtnHttp;
-        private System.Windows.Forms.ToolStripSeparator toolStripSeparator2;
         private System.Windows.Forms.ToolStripLabel toolStripLabel1;
         private System.Windows.Forms.ToolStripComboBox cboMaxSession;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator3;
@@ -813,10 +813,16 @@
         private System.Windows.Forms.ToolStripMenuItem contextCopySourceCountry;
         private System.Windows.Forms.ToolStripMenuItem contextCopyDestinationCountry;
         private System.Windows.Forms.TabPage tabPageInfo;
-        private System.Windows.Forms.RichTextBox txtUrls;
+        private System.Windows.Forms.RichTextBox txtInfo;
         private System.Windows.Forms.ToolStripSeparator menuFileSep2;
         private System.Windows.Forms.ToolStripMenuItem menuFileExport;
         private System.Windows.Forms.ToolStripMenuItem menuFileExportUrls;
+        private System.Windows.Forms.ToolStripMenuItem menuProcessors;
+        private System.Windows.Forms.ToolStripMenuItem menuProcessorsSmtp;
+        private System.Windows.Forms.ToolStripMenuItem menuParsers;
+        private System.Windows.Forms.ToolStripSeparator contextSep1;
+        private System.Windows.Forms.ToolStripMenuItem contextDecode;
+        private System.Windows.Forms.ToolStripMenuItem contextDecodeGzip;
     }
 }
 
