@@ -9,6 +9,8 @@ namespace SessionViewer
     internal class SubjectRecipents
     {
         public string Subject { get; set; }
+        public string File { get; set; }
+        public string Sender { get; set; }
         public List<string> Recipients { get; set; }
 
         /// <summary>
@@ -17,6 +19,7 @@ namespace SessionViewer
         public SubjectRecipents()
         {
             Subject = string.Empty;
+            File = string.Empty;
             Recipients = new List<string>();
         }
     }

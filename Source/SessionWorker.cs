@@ -9,7 +9,7 @@ using System.Linq;
 
 namespace SessionViewer
 {
-    class SessionWorker
+    internal class SessionWorker
     {
         public event woanware.Events.MessageEvent CompleteEvent;
 
@@ -53,7 +53,7 @@ namespace SessionViewer
                             this.processing = true;
 
                             //Console.WriteLine("Processing: (" +this.Id + ") " + System.IO.Path.Combine(sessionTask.OutputPath, sessionTask.Session.Guid.Substring(0, 2), sessionTask.Session.Guid + ".bin"));
-                            var parser = (from p in this.parsers where sessionTask.Parser.ToLower() == sessionTask.Parser select p).SingleOrDefault();
+                            var parser = (from p in this.parsers where sessionTask.Parser.ToLower() == sessionTask.Parser.ToLower() select p).SingleOrDefault();
                             if (parser == null)
                             {
                                 continue;

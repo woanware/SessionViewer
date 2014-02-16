@@ -58,7 +58,7 @@ namespace SessionViewer
         {
             _ls = new LookupService("GeoIP.dat", LookupService.GEOIP_MEMORY_CACHE);
 
-            sessionParser = new SessionParser(4);
+            sessionParser = new SessionParser(1);
             sessionParser.CompleteEvent += SessionParser_CompleteEvent;
         }
 

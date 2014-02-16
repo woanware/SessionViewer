@@ -42,8 +42,7 @@
             this.menuTools = new System.Windows.Forms.ToolStripMenuItem();
             this.menuToolsOptions = new System.Windows.Forms.ToolStripMenuItem();
             this.menuParsers = new System.Windows.Forms.ToolStripMenuItem();
-            this.menuProcessors = new System.Windows.Forms.ToolStripMenuItem();
-            this.menuProcessorsSmtp = new System.Windows.Forms.ToolStripMenuItem();
+            this.menuExtractors = new System.Windows.Forms.ToolStripMenuItem();
             this.menuHelp = new System.Windows.Forms.ToolStripMenuItem();
             this.menuHelpHelp = new System.Windows.Forms.ToolStripMenuItem();
             this.menuHelpSep1 = new System.Windows.Forms.ToolStripSeparator();
@@ -119,7 +118,7 @@
             this.menuFile,
             this.menuTools,
             this.menuParsers,
-            this.menuProcessors,
+            this.menuExtractors,
             this.menuHelp});
             this.menu.Location = new System.Drawing.Point(0, 0);
             this.menu.Name = "menu";
@@ -209,20 +208,11 @@
             this.menuParsers.Size = new System.Drawing.Size(56, 20);
             this.menuParsers.Text = "Parsers";
             // 
-            // menuProcessors
+            // menuExtractors
             // 
-            this.menuProcessors.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.menuProcessorsSmtp});
-            this.menuProcessors.Name = "menuProcessors";
-            this.menuProcessors.Size = new System.Drawing.Size(75, 20);
-            this.menuProcessors.Text = "Processors";
-            // 
-            // menuProcessorsSmtp
-            // 
-            this.menuProcessorsSmtp.Name = "menuProcessorsSmtp";
-            this.menuProcessorsSmtp.Size = new System.Drawing.Size(105, 22);
-            this.menuProcessorsSmtp.Text = "SMTP";
-            this.menuProcessorsSmtp.Click += new System.EventHandler(this.menuProcessorsSmtp_Click);
+            this.menuExtractors.Name = "menuExtractors";
+            this.menuExtractors.Size = new System.Drawing.Size(70, 20);
+            this.menuExtractors.Text = "Extractors";
             // 
             // menuHelp
             // 
@@ -481,7 +471,7 @@
             this.contextDecode});
             this.context.Name = "context";
             this.context.RenderMode = System.Windows.Forms.ToolStripRenderMode.System;
-            this.context.Size = new System.Drawing.Size(153, 98);
+            this.context.Size = new System.Drawing.Size(115, 76);
             this.context.Opening += new System.ComponentModel.CancelEventHandler(this.context_Opening);
             // 
             // contextCopy
@@ -497,7 +487,7 @@
             this.contextCopyTimestampFirstPacket,
             this.contextCopyTimestampLastPacket});
             this.contextCopy.Name = "contextCopy";
-            this.contextCopy.Size = new System.Drawing.Size(152, 22);
+            this.contextCopy.Size = new System.Drawing.Size(114, 22);
             this.contextCopy.Text = "Copy";
             // 
             // contextCopySourceIp
@@ -569,7 +559,7 @@
             this.contextExportUniqueSourceIp,
             this.contextExportDestinationIp});
             this.contextExport.Name = "contextExport";
-            this.contextExport.Size = new System.Drawing.Size(152, 22);
+            this.contextExport.Size = new System.Drawing.Size(114, 22);
             this.contextExport.Text = "Export";
             // 
             // contextExportUniqueSourceIp
@@ -589,20 +579,20 @@
             // contextSep1
             // 
             this.contextSep1.Name = "contextSep1";
-            this.contextSep1.Size = new System.Drawing.Size(149, 6);
+            this.contextSep1.Size = new System.Drawing.Size(111, 6);
             // 
             // contextDecode
             // 
             this.contextDecode.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.contextDecodeGzip});
             this.contextDecode.Name = "contextDecode";
-            this.contextDecode.Size = new System.Drawing.Size(152, 22);
+            this.contextDecode.Size = new System.Drawing.Size(114, 22);
             this.contextDecode.Text = "Decode";
             // 
             // contextDecodeGzip
             // 
             this.contextDecodeGzip.Name = "contextDecodeGzip";
-            this.contextDecodeGzip.Size = new System.Drawing.Size(152, 22);
+            this.contextDecodeGzip.Size = new System.Drawing.Size(99, 22);
             this.contextDecodeGzip.Text = "GZIP";
             this.contextDecodeGzip.Click += new System.EventHandler(this.contextDecodeGzip_Click);
             // 
@@ -817,8 +807,7 @@
         private System.Windows.Forms.ToolStripSeparator menuFileSep2;
         private System.Windows.Forms.ToolStripMenuItem menuFileExport;
         private System.Windows.Forms.ToolStripMenuItem menuFileExportUrls;
-        private System.Windows.Forms.ToolStripMenuItem menuProcessors;
-        private System.Windows.Forms.ToolStripMenuItem menuProcessorsSmtp;
+        private System.Windows.Forms.ToolStripMenuItem menuExtractors;
         private System.Windows.Forms.ToolStripMenuItem menuParsers;
         private System.Windows.Forms.ToolStripSeparator contextSep1;
         private System.Windows.Forms.ToolStripMenuItem contextDecode;

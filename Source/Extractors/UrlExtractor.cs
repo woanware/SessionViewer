@@ -10,6 +10,8 @@ using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using System.Threading;
 using woanware;
+using System.Collections.Concurrent;
+using System.Threading.Tasks;
 
 namespace SessionViewer.SessionProcessors
 {
@@ -18,57 +20,143 @@ namespace SessionViewer.SessionProcessors
     /// </summary>
     internal class UrlExtractor : InterfaceExtractor
     {
-        public event woanware.Events.MessageEvent Complete;
-        public event woanware.Events.MessageEvent Error;
-        public event woanware.Events.MessageEvent Warning;
-        public event woanware.Events.MessageEvent Message;
+        #region Events
+        public event woanware.Events.MessageEvent CompleteEvent;
+        public event woanware.Events.MessageEvent ErrorEvent;
+        public event woanware.Events.MessageEvent WarningEvent;
+        public event woanware.Events.MessageEvent MessageEvent;
+        #endregion
 
-        private string _dataDirectory = string.Empty;
-        private string _outputDirectory = string.Empty;
+        public int Id { get; private set; }
+        private CancellationTokenSource cancelSource = null;
+        private BlockingCollection<Session> blockingCollection;
+        private string dataDirectory = string.Empty;
+        private string outputDirectory = string.Empty;
+        private bool processed = false;
+        private bool processing = false;
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="directory"></param>
-        public void Run(ArrayList sessions, 
-                        string dataDirectory, 
-                        string outputDirectory)
+        public void Start()
         {
-            _dataDirectory = dataDirectory;
-            _outputDirectory = outputDirectory;
-
-            (new Thread(() =>
+            Task task = Task.Factory.StartNew(() =>
             {
-                //// Write CSV header
-                //IO.WriteTextToFile("\"MD5\",\"File\",\"Src IP\",\"Src Port\",\"Dst IP\",\"Dst Port\",\"To\",\"From\",\"Mail From\",\"Sender\",\"Subject\",\"Date\"" + Environment.NewLine, System.IO.Path.Combine(_outputDirectory, "Attachment.Hashes.csv"), false);
-                //foreach (Session session in sessions)
-                //{
-                //    if (File.Exists(System.IO.Path.Combine(dataDirectory, session.Guid.Substring(0, 2), session.Guid + ".bin")) == false)
-                //    {
-                //        continue;
-                //    }
+                try
+                {
+                    cancelSource = new CancellationTokenSource();
 
-                //    byte[] temp = File.ReadAllBytes(System.IO.Path.Combine(dataDirectory, session.Guid.Substring(0, 2), session.Guid + ".bin"));
-                //    ProcessAttachments(session, temp);
-                //}
+                    foreach (Session session in this.blockingCollection.GetConsumingEnumerable(cancelSource.Token))
+                    {
+                        try
+                        {
+                            this.processing = true;
 
-                //ProcessAttachmentHashes();
+                            string path = System.IO.Path.Combine(this.dataDirectory,
+                                                                 session.Guid.Substring(0, 2),
+                                                                 session.Guid + ".bin");
 
-                OnComplete();
+                            if (File.Exists(path) == false)
+                            {
+                                continue;
+                            }
 
-            })).Start();   
+                            //byte[] temp = File.ReadAllBytes(System.IO.Path.Combine(dataDirectory, session.Guid.Substring(0, 2), session.Guid + ".bin"));
+                            //ProcessAttachments(session, temp);
+                        }
+                        finally
+                        {
+                            if (this.processed == true & this.blockingCollection.Count == 0)
+                            {
+                                Thread.Sleep(new TimeSpan(0, 0, 5));
+                                this.cancelSource.Cancel();
+                            }
+
+                            this.processing = false;
+                        }
+                    }
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    //System.Console.WriteLine(ex.ToString());
+                }
+                finally
+                {
+                    OnComplete(Id.ToString());
+                }
+
+            }, TaskCreationOptions.LongRunning);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="id"></param>
+        /// <param name="blockingCollection"></param>
+        /// <param name="outputDirectory"></param>
+        /// <param name="dataDirectory"></param>
+        public void Initialise(int id,
+                               BlockingCollection<Session> blockingCollection,
+                               string outputDirectory,
+                               string dataDirectory)
+        {
+            this.Id = id;
+            this.blockingCollection = blockingCollection;
+            this.outputDirectory = outputDirectory;
+            this.dataDirectory = dataDirectory;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="dataDirectory"></param>
+        /// <param name="outputDirectory"></param>
+        public void PreProcess(string dataDirectory, string outputDirectory)
+        {
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="dataDirectory"></param>
+        /// <param name="outputDirectory"></param>
+        public void PostProcess(string dataDirectory, string outputDirectory)
+        {
+
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public void Stop()
+        {
+            this.cancelSource.Cancel();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public void SetProcessed()
+        {
+            this.processed = true;
+
+            if (this.processing == false & this.blockingCollection.Count == 0)
+            {
+                Stop();
+            }
         }
 
         #region Event Methods
         /// <summary>
         /// 
         /// </summary>
-        private void OnComplete()
+        private void OnComplete(string id)
         {
-            var handler = Complete;
+            var handler = CompleteEvent;
             if (handler != null)
             {
-                handler("SMTP processing complete");
+                handler(id);
             }
         }
 
@@ -77,7 +165,7 @@ namespace SessionViewer.SessionProcessors
         /// </summary>
         private void OnError(string text)
         {
-            var handler = Error;
+            var handler = ErrorEvent;
             if (handler != null)
             {
                 handler(text);
@@ -89,7 +177,7 @@ namespace SessionViewer.SessionProcessors
         /// </summary>
         private void OnWarning(string text)
         {
-            var handler = Warning;
+            var handler = WarningEvent;
             if (handler != null)
             {
                 handler(text);
@@ -101,7 +189,7 @@ namespace SessionViewer.SessionProcessors
         /// </summary>
         private void OnMessage(string text)
         {
-            var handler = Message;
+            var handler = MessageEvent;
             if (handler != null)
             {
                 handler(text);

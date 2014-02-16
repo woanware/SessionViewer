@@ -23,10 +23,12 @@
 - Modified the SMTP processing so that the email addresses from the TO parts
 - Modified the SMTP CSV to include a header
 - Added option to manually perform GZIP decoding so that specific sessions can be decoded when the HTTP parser has been turned off. This will also parse the HTTP Host header and all of the HTTP methods called in the TCP session, the parsed data will then be displayed in the list.
+- Add HTTP file extractor which uses file signatures to determine what should be  extracted out (zip, exe, gz, doc, xls, docx, xlsx, pdf, rar, winzip)
 
 - Store a file in output dir which contains the data e.g. start time, end time, duration, items processed etc 
 - Added the ability to import a list of hashes that are matched against the SMTP output. Thanks DannyF
-- Extract files from HTTP? zip, exe
+- Partial content?
+
 
 **v1.0.10**
 

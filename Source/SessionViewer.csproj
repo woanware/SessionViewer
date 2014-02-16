@@ -121,8 +121,10 @@
   <ItemGroup>
     <Compile Include="Attachment.cs" />
     <Compile Include="Connection.cs" />
-    <Compile Include="Extractors\HttpFileExtractorSig.cs" />
-    <Compile Include="Extractors\HttpFileExtractorHeader.cs" />
+    <Compile Include="Extractor.cs" />
+    <Compile Include="Extractors\FileDetails.cs" />
+    <Compile Include="Extractors\HttpFileExtractor.cs" />
+    <Compile Include="Extractors\MessageDetails.cs" />
     <Compile Include="Extractors\UrlExtractor.cs" />
     <Compile Include="Interfaces\InterfaceSessionParser.cs" />
     <Compile Include="Interfaces\InterfaceParser.cs" />
@@ -165,6 +167,7 @@
     <Compile Include="SessionParser.cs" />
     <Compile Include="SessionParsers\HttpParser.cs" />
     <Compile Include="Extractors\SmtpExtractor.cs" />
+    <Compile Include="ExtractorTask.cs" />
     <Compile Include="SessionTask.cs" />
     <Compile Include="SessionWorker.cs" />
     <Compile Include="Settings.cs" />

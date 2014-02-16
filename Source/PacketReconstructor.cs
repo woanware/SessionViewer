@@ -307,7 +307,8 @@ namespace SessionViewer
                     sanitised = sanitised.Trim();
 
                     woanware.IO.WriteToFileStream(_storageHtml, @"<br>");
-                    _lastPacketOutbound = isOutBound;
+                    //woanware.IO.WriteToFileStream(_storage, "\r\n");
+                    _lastPacketOutbound = isOutBound; 
                 }
 
                 string tempHtml = HttpUtility.HtmlEncode(sanitised);

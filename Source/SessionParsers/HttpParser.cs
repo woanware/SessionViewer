@@ -1,18 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using woanware;
-using Trinet.Core.IO.Ntfs;
+﻿using HtmlParserSharp;
 using HttpKit;
-using HtmlParserSharp;
+using System;
+using System.Collections.Generic;
 using System.Data.Common;
-using NPoco;
+using System.IO;
+using System.Text;
+using Trinet.Core.IO.Ntfs;
+using woanware;
 
 namespace SessionViewer.SessionParsers
 {
+    /// <summary>
+    /// 
+    /// </summary>
     public class HttpParser : InterfaceSessionParser
     {
         #region Member Variables
@@ -53,8 +53,6 @@ namespace SessionViewer.SessionParsers
             using (FileStream fileStream = new FileStream(outputFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
                 this.parser.Parse(fileStream, outputFile);
-
-                fileStream.Dispose();
             }
 
             //string ret = woanware.IO.DeleteFile(this.outputFile);

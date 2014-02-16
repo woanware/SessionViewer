@@ -10,6 +10,9 @@ using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using System.Threading;
 using woanware;
+using System.Collections.Concurrent;
+using System.Threading.Tasks;
+using Extractors;
 
 namespace SessionViewer.SessionProcessors
 {
@@ -18,64 +21,197 @@ namespace SessionViewer.SessionProcessors
     /// </summary>
     internal class SmtpExtractor : InterfaceExtractor
     {
-        public event woanware.Events.MessageEvent Complete;
-        public event woanware.Events.MessageEvent Error;
-        public event woanware.Events.MessageEvent Warning;
-        public event woanware.Events.MessageEvent Message;
+        #region Events
+        public event woanware.Events.MessageEvent CompleteEvent;
+        public event woanware.Events.MessageEvent ErrorEvent;
+        public event woanware.Events.MessageEvent WarningEvent;
+        public event woanware.Events.MessageEvent MessageEvent;
+        #endregion
 
-        private string _dataDirectory = string.Empty;
-        private string _outputDirectory = string.Empty;
+        public int Id { get; private set; }
+        private CancellationTokenSource cancelSource = null;
+        private string dataDirectory = string.Empty;
+        private string outputDirectory = string.Empty;
+        private BlockingCollection<Session> blockingCollection;
+        private readonly object _lock = new object();
+        private bool processed = false;
+        private bool processing = false;
 
+        #region Public Methods
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="directory"></param>
-        public void Run(ArrayList sessions, 
-                        string dataDirectory, 
-                        string outputDirectory)
+        /// <param name="id"></param>
+        /// <param name="blockingCollection"></param>
+        /// <param name="dataDirectory"></param>
+        /// <param name="outputDirectory"></param>
+        public void Initialise(int id, 
+                               BlockingCollection<Session> blockingCollection,
+                               string dataDirectory,
+                               string outputDirectory)
         {
-            _dataDirectory = dataDirectory;
-            _outputDirectory = outputDirectory;
-
-            (new Thread(() =>
-            {
-                // Write CSV header
-                IO.WriteTextToFile("\"MD5\",\"File\",\"Src IP\",\"Src Port\",\"Dst IP\",\"Dst Port\",\"To\",\"From\",\"Mail From\",\"Sender\",\"Subject\",\"Date\"" + Environment.NewLine, System.IO.Path.Combine(_outputDirectory, "Attachment.Hashes.csv"), false);
-                foreach (Session session in sessions)
-                {
-                    if (File.Exists(System.IO.Path.Combine(dataDirectory, session.Guid.Substring(0, 2), session.Guid + ".bin")) == false)
-                    {
-                        continue;
-                    }
-
-                    byte[] temp = File.ReadAllBytes(System.IO.Path.Combine(dataDirectory, session.Guid.Substring(0, 2), session.Guid + ".bin"));
-                    ProcessAttachments(session, temp);
-                }
-
-                ProcessAttachmentHashes();
-
-                OnComplete();
-
-            })).Start();   
+            this.Id = id;
+            this.blockingCollection = blockingCollection;
+            this.dataDirectory = dataDirectory;
+            this.outputDirectory = outputDirectory;
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="outputDir"></param>
-        private void ProcessAttachmentHashes()
+        public void Start()
         {
-            if (File.Exists(System.IO.Path.Combine(_outputDirectory, "Attachment.Hashes.csv")) == false)
+            Task task = Task.Factory.StartNew(() =>
+            {
+                try
+                {
+                    cancelSource = new CancellationTokenSource();
+
+                    foreach (Session session in this.blockingCollection.GetConsumingEnumerable(cancelSource.Token))
+                    {
+                        try
+                        {
+                            this.processing = true;
+
+                            string path = System.IO.Path.Combine(this.dataDirectory,
+                                                                 session.Guid.Substring(0, 2),
+                                                                 session.Guid + ".bin");
+
+                            if (File.Exists(path) == false)
+                            {
+                                continue;
+                            }
+
+                            byte[] temp = File.ReadAllBytes(path);
+                            ProcessAttachments(session, temp);
+                        }
+                        finally
+                        {
+                            if (this.processed == true & this.blockingCollection.Count == 0)
+                            {
+                                Thread.Sleep(new TimeSpan(0, 0, 5));
+                                this.cancelSource.Cancel();
+                            }
+
+                            this.processing = false;
+                        }
+                    }
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    //System.Console.WriteLine(ex.ToString());
+                }
+                finally
+                {
+                    OnComplete(Id.ToString());
+                }
+
+            }, TaskCreationOptions.LongRunning);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="dataDirectory"></param>
+        /// <param name="outputDirectory"></param>
+        public void PreProcess(string dataDirectory, string outputDirectory)
+        {
+            // Write CSV header
+            IO.WriteTextToFile("\"MD5\",\"File\",\"Src IP\",\"Src Port\",\"Dst IP\",\"Dst Port\",\"To\",\"From\",\"Mail From\",\"Sender\",\"Subject\",\"Date\"" + Environment.NewLine, System.IO.Path.Combine(outputDirectory, "Attachment.Hashes.csv"), false);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="dataDirectory"></param>
+        /// <param name="outputDirectory"></param>
+        public void PostProcess(string dataDirectory, 
+                                string outputDirectory)
+        {
+            CsvConfiguration csvConfiguration = new CsvConfiguration();
+            csvConfiguration.QuoteAllFields = true;
+
+            using (FileStream fileStream = new FileStream(System.IO.Path.Combine(outputDirectory, "Attachment.Hashes.csv"), FileMode.Append, FileAccess.Write, FileShare.Read))
+            using (StreamWriter streamWriter = new StreamWriter(fileStream))
+            using (CsvHelper.CsvWriter csvWriter = new CsvHelper.CsvWriter(streamWriter, csvConfiguration))
+            {
+                // Now MD5 the files
+                foreach (string file in System.IO.Directory.EnumerateFiles(outputDirectory,
+                                                                           "*.xml",
+                                                                           SearchOption.AllDirectories))
+                {
+                    string fileName = System.IO.Path.GetFileName(file);
+                    if (fileName.StartsWith("Message.Details.") == false)
+                    {
+                        continue;
+                    }
+
+                    MessageDetails messageDetails = new MessageDetails();
+                    string ret = messageDetails.Load(file);
+                    if (ret.Length == 0)
+                    {
+                        foreach (AttachmentDetails attachment in messageDetails.Attachments)
+                        {
+                            csvWriter.WriteField(attachment.Md5);
+                            csvWriter.WriteField(attachment.File);
+                            csvWriter.WriteField(messageDetails.SrcIp);
+                            csvWriter.WriteField(messageDetails.SrcPort);
+                            csvWriter.WriteField(messageDetails.DstIp);
+                            csvWriter.WriteField(messageDetails.DstPort);
+                            csvWriter.WriteField(messageDetails.To);
+                            csvWriter.WriteField(messageDetails.From);
+                            csvWriter.WriteField(messageDetails.MailFrom);
+                            csvWriter.WriteField(messageDetails.Sender);
+                            csvWriter.WriteField(messageDetails.Subject);
+                            csvWriter.WriteField(messageDetails.Date);
+                            csvWriter.NextRecord();
+                        }
+                    }
+                }
+            }
+
+            ProcessAttachmentHashes(outputDirectory);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public void Stop()
+        {
+            this.cancelSource.Cancel();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public void SetProcessed()
+        {
+            this.processed = true;
+
+            if (this.processing == false & this.blockingCollection.Count == 0)
+            {
+                Stop();
+            }
+        }
+        #endregion
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="outputDirectory"></param>
+        private void ProcessAttachmentHashes(string outputDirectory)
+        {
+            if (File.Exists(System.IO.Path.Combine(outputDirectory, "Attachment.Hashes.csv")) == false)
             {
                 OnError("Cannot locate the \"Attachment.Hashes.csv\" files");
                 return;
             }
 
             CsvConfiguration csvConfig = new CsvConfiguration();
-            //csvConfig.IgnoreQuotes = true;
 
             Regex regex = new Regex("<(.*?)>", RegexOptions.IgnoreCase);
-            using (StreamReader sr = new StreamReader(System.IO.Path.Combine(_outputDirectory, "Attachment.Hashes.csv")))
+            using (StreamReader sr = new StreamReader(System.IO.Path.Combine(outputDirectory, "Attachment.Hashes.csv")))
             using (CsvHelper.CsvReader csvReader = new CsvHelper.CsvReader(sr, csvConfig))
             {
                 List<Attachment> attachments = new List<Attachment>();
@@ -130,6 +266,18 @@ namespace SessionViewer.SessionProcessors
                         }
                         attachment.DateSent = dateSent;
                         attachments.Add(attachment);
+
+                        SubjectRecipents subjectRecipient = new SubjectRecipents();
+                        subjectRecipient.Subject = subject;
+                        subjectRecipient.File = file;
+                        subjectRecipient.Sender = sender;
+
+                        foreach (string person in tempTo)
+                        {
+                            subjectRecipient.Recipients.Add(person);
+                        }
+
+                        attachment.SubjectRecipents.Add(subjectRecipient);
                     }
                     else
                     {
@@ -165,6 +313,8 @@ namespace SessionViewer.SessionProcessors
                         {
                             subjectRecipient = new SubjectRecipents();
                             subjectRecipient.Subject = subject;
+                            subjectRecipient.File = file;
+                            subjectRecipient.Sender = sender;
 
                             foreach (string person in tempTo)
                             {
@@ -187,63 +337,39 @@ namespace SessionViewer.SessionProcessors
                     }
                 }
 
-                OutputSummary(attachments);
+                OutputSummary(outputDirectory, attachments);
             }
         }
 
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="outputDirectory"></param>
         /// <param name="attachments"></param>
-        private void OutputSummary(List<Attachment> attachments)
+        private void OutputSummary(string outputDirectory, List<Attachment> attachments)
         {
-            string summaryFile = System.IO.Path.Combine(_outputDirectory, "Attachment.Summary.txt");
-            string recipientFile = System.IO.Path.Combine(_outputDirectory, "Recipient.Summary.txt");
+            string summaryFile = System.IO.Path.Combine(outputDirectory, "Attachment.Summary.txt");
+            string recipientFile = System.IO.Path.Combine(outputDirectory, "Recipient.Summary.txt");
 
             attachments.Sort((x, y) => x.Md5.CompareTo(y.Md5));
             foreach (Attachment attachment in attachments)
             {
                 IO.WriteTextToFile("MD5: " + attachment.Md5 + Environment.NewLine, summaryFile, true);
-
-                attachment.FileNames.Sort();
-                foreach (string fileName in attachment.FileNames)
-                {
-                    IO.WriteTextToFile("File Name: " + fileName + Environment.NewLine, summaryFile, true);
-                }
-
-                attachment.Subjects.Sort();
-                foreach (string subject in attachment.Subjects)
-                {
-                    IO.WriteTextToFile("Subject: " + subject + Environment.NewLine, summaryFile, true);
-                }
-
-                attachment.Senders.Sort();
-                foreach (string person in attachment.Senders)
-                {
-                    IO.WriteTextToFile("Sender: " + person + Environment.NewLine, summaryFile, true);
-                }
-
-                attachment.Recipients.Sort();
-                foreach (string person in attachment.Recipients)
-                {
-                    IO.WriteTextToFile("Recipient: " + person + Environment.NewLine, summaryFile, true);
-                }
-
                 IO.WriteTextToFile("Date Sent: " + attachment.DateSent + Environment.NewLine, summaryFile, true);
-                IO.WriteTextToFile(Environment.NewLine, summaryFile, true);
 
                 attachment.SubjectRecipents.Sort((x, y) => x.Subject.CompareTo(y.Subject));
-                IO.WriteTextToFile("MD5: " + attachment.Md5 + Environment.NewLine, recipientFile, true);
                 foreach (SubjectRecipents subjectRecipents in attachment.SubjectRecipents)
                 {
-                    IO.WriteTextToFile("Subject: " + subjectRecipents.Subject + Environment.NewLine, recipientFile, true);
+                    IO.WriteTextToFile("Subject: " + subjectRecipents.Subject + Environment.NewLine, summaryFile, true);
+                    IO.WriteTextToFile("File: " + subjectRecipents.File + Environment.NewLine, summaryFile, true);
+                    IO.WriteTextToFile("Sender: " + subjectRecipents.Sender + Environment.NewLine, summaryFile, true);
                     foreach (string person in subjectRecipents.Recipients)
                     {
-                        IO.WriteTextToFile("Recipient: " + person + Environment.NewLine, recipientFile, true);
+                        IO.WriteTextToFile("Recipient: " + person + Environment.NewLine, summaryFile, true);
                     }
                 }
-
-                IO.WriteTextToFile(Environment.NewLine, recipientFile, true);
+                
+                IO.WriteTextToFile(Environment.NewLine, summaryFile, true);
             }
         }
 
@@ -268,8 +394,8 @@ namespace SessionViewer.SessionProcessors
 
                     HashFiles(session,
                               message,
-                              _outputDirectory,
-                              System.IO.Path.Combine(_outputDirectory, dir));
+                              this.outputDirectory,
+                              System.IO.Path.Combine(this.outputDirectory, dir));
                 }
             }
             catch (Exception ex)
@@ -383,29 +509,28 @@ namespace SessionViewer.SessionProcessors
                 return;
             }
 
-            OutputMessageDetails(session, dir, message);
-
             string path = string.Empty;
             string fileName = string.Empty;
             try
             {
                 // It appears that it is possible for filenames to have new line characters in them!
-                path = woanware.Path.ReplaceIllegalPathChars(part.FileName);
+                path = woanware.Path.ReplaceIllegalPathChars(part.FileName + ".safe");
                 path = path.Replace("\n", string.Empty);
                 path = path.Replace("\r", string.Empty);
-                path = System.IO.Path.Combine(_outputDirectory, dir, path);
+                path = System.IO.Path.Combine(this.outputDirectory, dir, path);
                 fileName = part.FileName.Replace("\n", string.Empty);
                 fileName = part.FileName.Replace("\r", string.Empty);
+                fileName += ".safe";
 
-                if (System.IO.Directory.Exists(System.IO.Path.Combine(_outputDirectory, dir)) == false)
+                if (System.IO.Directory.Exists(System.IO.Path.Combine(this.outputDirectory, dir)) == false)
                 {
-                    IO.CreateDirectory(System.IO.Path.Combine(_outputDirectory, dir));
+                    IO.CreateDirectory(System.IO.Path.Combine(this.outputDirectory, dir));
                 }
 
                 if (File.Exists(path) == true)
                 {
                     fileName = Guid.NewGuid().ToString() + fileName;
-                    path = System.IO.Path.Combine(_outputDirectory, dir, fileName);
+                    path = System.IO.Path.Combine(this.outputDirectory, dir, fileName);
                 }
 
                 using (var stream = File.Create(path))
@@ -426,78 +551,7 @@ namespace SessionViewer.SessionProcessors
 
             PerformArchiveDecompression(path,
                                         fileName,
-                                        System.IO.Path.Combine(_outputDirectory, dir));
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="outputDir"></param>
-        /// <param name="dir"></param>
-        /// <param name="message"></param>
-        private void OutputMessageDetails(Session session, 
-                                          string dir,
-                                          MimeKit.MimeMessage message)
-        {
-            if (System.IO.Directory.Exists(System.IO.Path.Combine(_outputDirectory, dir)) == false)
-            {
-                IO.CreateDirectory(System.IO.Path.Combine(_outputDirectory, dir));
-            }
-
-            if (File.Exists(System.IO.Path.Combine(_outputDirectory, dir, "Message.Info.txt")) == true)
-            {
-                return;
-            }
-
-            string mailFrom = GetSmtpMailFrom(System.IO.Path.Combine(_dataDirectory, session.Guid.Substring(0, 2), session.Guid + ".bin"));
-
-            string from = string.Empty;
-            if (message.From != null)
-            {
-                from = string.Join(",", message.From);
-            }
-
-            string sender = string.Empty;
-            if (message.Sender != null)
-            {
-                sender = message.Sender.Address;
-            }
-
-            string messageInfo = string.Format("To: {0} \r\nFrom: {1}\r\nMail From: {2}\r\nSender: {3}\r\nSubject: {4}\r\nDate Sent: {5}",
-                                               string.Join(",", message.To) ?? string.Empty,
-                                               from,
-                                               mailFrom,
-                                               sender,
-                                               message.Subject ?? string.Empty,
-                                               message.Date);
-
-            IO.WriteTextToFile(messageInfo, System.IO.Path.Combine(_outputDirectory, dir, "Message.Info.txt"), false);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="path"></param>
-        /// <returns></returns>
-        private byte[] ReadFileHeader(string path)
-        {
-            try
-            {
-                FileStream fs = File.OpenRead(path);
-                byte[] buffer = new byte[4];
-                int ret = fs.Read(buffer, 0, 4);
-                if (ret == 0)
-                {
-                    return null;
-                }
-
-                return buffer;
-            }
-            catch (Exception ex)
-            {
-                this.Log().Error(ex.ToString());
-                return null;
-            }
+                                        System.IO.Path.Combine(this.outputDirectory, dir));
         }
 
         /// <summary>
@@ -511,7 +565,7 @@ namespace SessionViewer.SessionProcessors
         {
             try
             {
-                byte[] fileHeader = ReadFileHeader(path);
+                byte[] fileHeader = IO.ReadFileHeader(path, 4);
                 if (fileHeader == null)
                 {
                     return;
@@ -556,9 +610,11 @@ namespace SessionViewer.SessionProcessors
                 return;
             }
 
-            string mailFrom = GetSmtpMailFrom(System.IO.Path.Combine(_dataDirectory, session.Guid.Substring(0, 2), session.Guid + ".bin"));
-
+            string mailFrom = GetSmtpMailFrom(System.IO.Path.Combine(this.dataDirectory, 
+                                                                     session.Guid.Substring(0, 2), 
+                                                                     session.Guid + ".bin"));
             string from = string.Empty;
+
             if (message.From != null)
             {
                 List<string> temp = new List<string>();
@@ -606,61 +662,58 @@ namespace SessionViewer.SessionProcessors
                 sender = message.Sender.Address;
             }
 
-            CsvConfiguration csvConfiguration = new CsvConfiguration();
-            csvConfiguration.QuoteAllFields = true;
-
-            using (FileStream fileStream = new FileStream(System.IO.Path.Combine(parentDir, "Attachment.Hashes.csv"), FileMode.Append, FileAccess.Write, FileShare.Read))
-            using (StreamWriter streamWriter = new StreamWriter(fileStream))
-            using (CsvHelper.CsvWriter csvWriter = new CsvHelper.CsvWriter(streamWriter, csvConfiguration))
+            MessageDetails messageDetails = new MessageDetails();
+            messageDetails.SrcIp = session.SrcIpText;
+            messageDetails.SrcPort = session.SourcePort;
+            messageDetails.DstIp = session.DstIpText;
+            messageDetails.DstPort = session.DestinationPort;
+            messageDetails.From = from;
+            messageDetails.To = to;
+            messageDetails.MailFrom = mailFrom;
+            messageDetails.Sender = sender;
+            messageDetails.Subject = message.Subject;
+            messageDetails.Date = message.Date.ToString("o");
+           
+            // Now MD5 the files
+            foreach (string file in System.IO.Directory.EnumerateFiles(outputDir,
+                                                                        "*.*",
+                                                                        SearchOption.AllDirectories))
             {
-                // Now MD5 the files
-                foreach (string file in System.IO.Directory.EnumerateFiles(outputDir,
-                                                                           "*.*",
-                                                                           SearchOption.AllDirectories))
+                if (System.IO.Path.GetFileName(file) == "Message.Info.txt")
                 {
-                    if (System.IO.Path.GetFileName(file) == "Message.Info.txt")
-                    {
-                        continue;
-                    }
-
-                    try
-                    {
-                        // Not sure if BufferedStream should be wrapped in using block
-                        using (var stream = new BufferedStream(File.OpenRead(file), 1200000))
-                        {
-                            MD5 md5 = new MD5CryptoServiceProvider();
-                            byte[] hashMd5 = md5.ComputeHash(stream);
-
-                            csvWriter.WriteField(woanware.Text.ConvertByteArrayToHexString(hashMd5));
-                            csvWriter.WriteField(file);
-                            csvWriter.WriteField(session.SrcIpText);
-                            csvWriter.WriteField(session.SourcePort);
-                            csvWriter.WriteField(session.DstIpText);
-                            csvWriter.WriteField(session.DestinationPort);
-                            csvWriter.WriteField(to);
-                            csvWriter.WriteField(from);
-                            csvWriter.WriteField(mailFrom);
-                            csvWriter.WriteField(sender);
-                            csvWriter.WriteField(message.Subject ?? string.Empty);
-                            csvWriter.WriteField(message.Date.ToString("o"));
-                            csvWriter.NextRecord();
-                        }
-                    }
-                    catch (Exception) { }
+                    continue;
                 }
+
+                try
+                {
+                    // Not sure if BufferedStream should be wrapped in using block
+                    using (var stream = new BufferedStream(File.OpenRead(file), 1200000))
+                    {
+                        MD5 md5 = new MD5CryptoServiceProvider();
+                        byte[] hashMd5 = md5.ComputeHash(stream);
+
+                        AttachmentDetails attachmentDetails = new AttachmentDetails();
+                        attachmentDetails.File = file;
+                        attachmentDetails.Md5 = woanware.Text.ConvertByteArrayToHexString(hashMd5);
+                        messageDetails.Attachments.Add(attachmentDetails);
+                    }
+                }
+                catch (Exception) { }
             }
+
+             messageDetails.Save(System.IO.Path.Combine(outputDir, "Message.Details." + message.MessageId + ".xml"));
         }
 
         #region Event Methods
         /// <summary>
         /// 
         /// </summary>
-        private void OnComplete()
+        private void OnComplete(string id)
         {
-            var handler = Complete;
+            var handler = CompleteEvent;
             if (handler != null)
             {
-                handler("SMTP processing complete");
+                handler(id);
             }
         }
 
@@ -669,7 +722,7 @@ namespace SessionViewer.SessionProcessors
         /// </summary>
         private void OnError(string text)
         {
-            var handler = Error;
+            var handler = ErrorEvent;
             if (handler != null)
             {
                 handler(text);
@@ -681,7 +734,7 @@ namespace SessionViewer.SessionProcessors
         /// </summary>
         private void OnWarning(string text)
         {
-            var handler = Warning;
+            var handler = WarningEvent;
             if (handler != null)
             {
                 handler(text);
@@ -693,7 +746,7 @@ namespace SessionViewer.SessionProcessors
         /// </summary>
         private void OnMessage(string text)
         {
-            var handler = Message;
+            var handler = MessageEvent;
             if (handler != null)
             {
                 handler(text);

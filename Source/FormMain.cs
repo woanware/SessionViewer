@@ -5,13 +5,13 @@ using SessionViewer.PacketProcessors;
 using SessionViewer.SessionParsers;
 using SessionViewer.SessionProcessors;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Data.Common;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Trinet.Core.IO.Ntfs;
 using woanware;
@@ -27,11 +27,13 @@ namespace SessionViewer
         private Settings _settings;
         private HourGlass _hourGlass;
         private Parser _parser;
-        private string _outputPath = string.Empty;
+        private string dataDirectory = string.Empty;
         //private List<Session> _sessions = null;
         private List<InterfaceExtractor> extractors;
         private List<InterfaceParser> parsers;
         private string _selectedGuid = string.Empty;
+        private int maxThreads = 1;
+        private Extractor extractor;
         #endregion
 
         #region Constructor
@@ -58,6 +60,9 @@ namespace SessionViewer
             //Logger logger = LogManager.GetLogger("MyClassName");
             //logger.Debug("testing testing 123!");
 
+            this.extractor = new Extractor();
+            this.extractor.CompleteEvent += OnExtractor_CompleteEvent;
+
             _parser = new Parser();
             _parser.Complete += OnParser_Complete;
             _parser.Error += OnParser_Error;
@@ -66,11 +71,14 @@ namespace SessionViewer
 
             this.extractors = new List<InterfaceExtractor>();
             SmtpExtractor smtp = new SmtpExtractor();
-            smtp.Complete += OnProcessor_Complete;
-            smtp.Error += OnProcessor_Error;
-            smtp.Message += OnProcessor_Message;
-            smtp.Warning += OnProcessor_Warning;
+            //smtp.Complete += OnProcessor_Complete;
+            //smtp.Error += OnProcessor_Error;
+            //smtp.Message += OnProcessor_Message;
+            //smtp.Warning += OnProcessor_Warning;
             this.extractors.Add(smtp);
+
+            HttpFileExtractor http = new HttpFileExtractor();
+            this.extractors.Add(http);
 
             this.parsers = new List<InterfaceParser>();
             this.parsers.Add(new DnsParser());
@@ -84,6 +92,14 @@ namespace SessionViewer
                 menuItem.Checked = true;
                 menuItem.Click += menuParsers_Click;
                 menuParsers.DropDownItems.Add(menuItem);
+            }
+
+            foreach (InterfaceExtractor extractor in this.extractors)
+            {
+                ToolStripMenuItem menuItem = new ToolStripMenuItem(extractor.Name);
+                menuItem.Tag = extractor.Name;
+                menuItem.Click += menuExtractors_Click;
+                menuExtractors.DropDownItems.Add(menuItem);
             }
 
             cboMaxSession.SelectedIndex = 0;
@@ -129,13 +145,19 @@ namespace SessionViewer
         /// </summary>
         private void OnParser_Complete()
         {
-            //_parser.Complete -= OnParser_Complete;
-            //_parser.Error -= OnParser_Error;
-            //_parser.Exclamation -= OnParser_Exclamation;
-            //_parser.Message -= OnParser_Message;
-            //_parser = null;
-
             LoadSessions();
+        }
+        #endregion
+
+        #region Extractor Event Handlers
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="message"></param>
+        private void OnExtractor_CompleteEvent()
+        {
+            UserInterface.DisplayMessageBox(this, "Extraction complete", MessageBoxIcon.Information);
+            this._hourGlass.Dispose();
         }
         #endregion
 
@@ -321,7 +343,7 @@ namespace SessionViewer
                     return;
                 }
 
-                _outputPath = formOpen.DatabaseFile;
+                this.dataDirectory = formOpen.DatabaseFile;
                 _hourGlass = new HourGlass(this);
                 SetProcessingStatus(false);
 
@@ -394,7 +416,7 @@ namespace SessionViewer
                 UserInterface.DisplayErrorMessageBox(this, "A SessionViewer database cannot be located");
             }
 
-            _outputPath = folderBrowserDialog.SelectedPath;
+            this.dataDirectory = folderBrowserDialog.SelectedPath;
             LoadSessions();
         }
 
@@ -415,6 +437,52 @@ namespace SessionViewer
             }
 
             parser.Enabled = ((ToolStripMenuItem)sender).Checked;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void menuExtractors_Click(object sender, EventArgs e)
+        {
+            string name = ((ToolStripMenuItem)sender).Tag.ToString();
+
+            FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog();
+            folderBrowserDialog.Description = "Select the output folder";
+
+            if (folderBrowserDialog.ShowDialog(this) == System.Windows.Forms.DialogResult.Cancel)
+            {
+                return;
+            }
+
+            string outputDirectory = folderBrowserDialog.SelectedPath;
+
+            var temp = (from p in this.extractors where p.Name.ToLower() == name.ToLower() select p).SingleOrDefault();
+            if (temp == null)
+            {
+                UserInterface.DisplayErrorMessageBox(this, "Unable to locate extractor");
+                return;
+            }
+
+            _hourGlass = new HourGlass(this);
+
+            Task task = Task.Factory.StartNew(() =>
+            {
+                this.extractor.Initialise(this.maxThreads,
+                                          temp,
+                                          this.dataDirectory,
+                                          outputDirectory);
+                this.extractor.Start();
+
+                foreach (Session session in listSession.Objects)
+                {
+                    extractor.Add(session);
+                }
+
+                extractor.SetProcessed();
+
+            }, TaskCreationOptions.LongRunning);
         }
 
         /// <summary>
@@ -457,12 +525,12 @@ namespace SessionViewer
 
                             foreach (Session session in listSession.Objects)
                             {
-                                if (File.Exists(System.IO.Path.Combine(_outputPath, session.Guid + ".urls")) == false)
+                                if (File.Exists(System.IO.Path.Combine(this.dataDirectory, session.Guid + ".urls")) == false)
                                 {
                                     continue;
                                 }
 
-                                string[] urls = File.ReadAllLines(System.IO.Path.Combine(_outputPath, session.Guid + ".urls"));
+                                string[] urls = File.ReadAllLines(System.IO.Path.Combine(this.dataDirectory, session.Guid + ".urls"));
                                 foreach (string url in urls)
                                 {
                                     string tempUrl = url.Trim();
@@ -635,7 +703,7 @@ namespace SessionViewer
                 using (new HourGlass(this))
                 {
                     List<Session> sessions = new List<Session>();
-                    using (DbConnection connection = Db.GetOpenConnection(_outputPath))
+                    using (DbConnection connection = Db.GetOpenConnection(this.dataDirectory))
                     using (var db = new NPoco.Database(connection, NPoco.DatabaseType.SQLCe))
                     {
                         try
@@ -703,7 +771,7 @@ namespace SessionViewer
                                 return;
                             }
 
-                            string filePath = System.IO.Path.Combine(_outputPath, session.Guid.Substring(0, 2), session.Guid + ".bin");
+                            string filePath = System.IO.Path.Combine(this.dataDirectory, session.Guid.Substring(0, 2), session.Guid + ".bin");
 
                             if (File.Exists(filePath) == false)
                             {
@@ -920,10 +988,10 @@ namespace SessionViewer
                         }
 
                         var httpParser = new HttpParser();
-                        httpParser.Process(this._outputPath, temp);
+                        httpParser.Process(this.dataDirectory, temp);
                         LoadSession(temp);
 
-                        using (DbConnection connection = Db.GetOpenConnection(this._outputPath))
+                        using (DbConnection connection = Db.GetOpenConnection(this.dataDirectory))
                         using (var db = new NPoco.Database(connection, NPoco.DatabaseType.SQLCe))
                         {
                             try
@@ -1137,33 +1205,5 @@ namespace SessionViewer
             menuFileOpen_Click(this, new EventArgs());
         }
         #endregion
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void menuProcessorsSmtp_Click(object sender, EventArgs e)
-        {
-            FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog();
-            folderBrowserDialog.Description = "Select the output folder";
-
-            if (folderBrowserDialog.ShowDialog(this) == System.Windows.Forms.DialogResult.Cancel)
-            {
-                return;
-            }
-
-            string outputFolder = folderBrowserDialog.SelectedPath;
-
-            _hourGlass = new HourGlass(this);
-            var processor = (from p in this.extractors where p.Name.ToLower() == "smtp" select p).SingleOrDefault();
-            if (processor == null)
-            {
-                UserInterface.DisplayErrorMessageBox(this, "Unable to locate extractor");
-                return;
-            }
-            
-            processor.Run((ArrayList)listSession.Objects, _outputPath, outputFolder);
-        }
     }
 }
