@@ -99,10 +99,11 @@ namespace SessionViewer
         /// <param name="batchCheck"></param>
         public void SetProcessed()
         {
-            for (int index = 0; index < this.workers.Count; index++)
-            {
-                this.workers[index].SetProcessed();
-            }
+            this.blockingCollection.CompleteAdding();
+            //for (int index = 0; index < this.workers.Count; index++)
+            //{
+            //    this.workers[index].SetProcessed();
+            //}
         }
         #endregion
 

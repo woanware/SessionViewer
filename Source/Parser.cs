@@ -13,6 +13,7 @@ using System.Threading;
 using woanware;
 using woanware.Network;
 using System.Threading.Tasks;
+using System.Data;
 
 namespace SessionViewer
 {
@@ -42,6 +43,7 @@ namespace SessionViewer
         /// </summary>
         public int BufferInterval { get; set; }
         public int SessionInterval { get; set; }
+        public int Threads { get; set; }
         public bool IgnoreLocal { get; set; }
         private long _packetCount;
         private long _maxSize;
@@ -54,11 +56,14 @@ namespace SessionViewer
         /// <summary>
         /// 
         /// </summary>
-        public Parser()
+        public Parser(int threads)
         {
+            this.Threads = threads;
+
             _ls = new LookupService("GeoIP.dat", LookupService.GEOIP_MEMORY_CACHE);
 
-            sessionParser = new SessionParser(1);
+            sessionParser = new SessionParser(this.Threads);
+            sessionParser.MessageEvent += SessionParser_MessageEvent;
             sessionParser.CompleteEvent += SessionParser_CompleteEvent;
         }
 
@@ -76,8 +81,6 @@ namespace SessionViewer
             this.cancelSource = new CancellationTokenSource();
             Task task = Task.Factory.StartNew(() =>
             {
-                Console.WriteLine("Start: " + DateTime.Now.ToString());
-
                 this.IsRunning = true;
                 this.IsStopping = false;
                 this.sessionParser.Start();
@@ -100,6 +103,8 @@ namespace SessionViewer
                         }
                     }
 
+                    woanware.IO.WriteTextToFile("Start: " + DateTime.Now.ToString() + Environment.NewLine, System.IO.Path.Combine(_outputPath, "Log.txt"), true);
+
                     OnMessage("Creating database...");
 
                     string ret = Db.CreateDatabase(_outputPath);
@@ -115,7 +120,6 @@ namespace SessionViewer
                     _dictionary = new Dictionary<Connection, PacketReconstructor>();
 
                     OfflinePacketDevice selectedDevice = new OfflinePacketDevice(pcapPath);
-
                     using (PacketCommunicator packetCommunicator = selectedDevice.Open(65536, PacketDeviceOpenAttributes.Promiscuous, 1000))
                     {
                         packetCommunicator.ReceivePackets(0, DispatcherHandler);
@@ -127,12 +131,16 @@ namespace SessionViewer
                     _dictionary.Clear();
                     _dictionary = null;
 
-                    // Now wait until all sessions have been parsed
                     sessionParser.SetProcessed();
+
+                    OnMessage("All sessions added to queue, now waiting for session parsing to complete...");
+
                     this.done = new AutoResetEvent(false);
                     this.done.WaitOne();
-                    
-                    Console.WriteLine("Finish: " + DateTime.Now.ToString());
+
+                    woanware.IO.WriteTextToFile("End: " + DateTime.Now.ToString() + Environment.NewLine, System.IO.Path.Combine(_outputPath, "Log.txt"), true);
+                    woanware.IO.WriteTextToFile("Packets: " + _packetCount + Environment.NewLine, System.IO.Path.Combine(_outputPath, "Log.txt"), true);
+                    woanware.IO.WriteTextToFile("TCP Sessions: " + this.sessionParser.TotalSessions + Environment.NewLine, System.IO.Path.Combine(_outputPath, "Log.txt"), true);
 
                     OnComplete();
                 }
@@ -181,6 +189,15 @@ namespace SessionViewer
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="message"></param>
+        private void SessionParser_MessageEvent(string message)
+        {
+            OnMessage(message);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
         private void SessionParser_CompleteEvent()
         {
             if (done != null)
@@ -206,6 +223,7 @@ namespace SessionViewer
 
                 if (tcp == null)
                 {
+                    Console.WriteLine("No TCP: " + ip.Source.ToString() + "#" + ip.Destination.ToString());
                     return;
                 }
 
@@ -267,7 +285,6 @@ namespace SessionViewer
                 using (DbConnection dbConnection = Db.GetOpenConnection(_outputPath))
                 using (var db = new NPoco.Database(dbConnection, NPoco.DatabaseType.SQLCe))
                 {
-                    NPoco.Transaction transaction = db.GetTransaction();
                     var keys = _dictionary.Keys.ToList();
                     foreach (var connection in keys)
                     {
@@ -311,7 +328,10 @@ namespace SessionViewer
                                                            connection);
 
                         _dictionary[connection].Dispose();
-                        _dictionary.Remove(connection);
+                        if (_dictionary.Remove(connection) == false)
+                        {
+                            Console.WriteLine("Unable to remove connection object: " + connection.GetName());
+                        }
 
                         if (temp.DataSize > 0)
                         {
@@ -321,12 +341,11 @@ namespace SessionViewer
                     }
 
                     OnMessage("Commiting database transaction..." + _packetCount + " packets");
-                    transaction.Complete();
                 }
             }
             catch (Exception ex)
             {
-                this.Log().Error(ex.ToString());            
+                this.Log().Error(ex.ToString());
             }
             finally
             {
@@ -388,7 +407,7 @@ namespace SessionViewer
         private void PerformSessionProcessing(Session session, 
                                               int pk)
         {
-            OnMessage("Performing session parsing...");
+            //OnMessage("Performing session parsing...");
 
             var parsers = from p in this._parsers where (p.Port == session.SourcePort | p.Port == session.DestinationPort) & p.Type == ParserType.Session select p;
             foreach (InterfaceParser parser in parsers)

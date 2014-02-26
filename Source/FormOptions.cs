@@ -12,13 +12,16 @@ namespace SessionViewer
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="threads"></param>
         /// <param name="bufferInterval"></param>
         /// <param name="sessionInterval"></param>
-        public FormOptions(int bufferInterval, 
+        public FormOptions(int threads, 
+                           int bufferInterval, 
                            int sessionInterval)
         {
             InitializeComponent();
 
+            UserInterface.LocateAndSelectComboBoxValue(threads.ToString(), cboThreads);
             UserInterface.LocateAndSelectComboBoxValue(bufferInterval.ToString(), cboBufferInterval);
             UserInterface.LocateAndSelectComboBoxValue(sessionInterval.ToString(), cboSessionInterval);
         }
@@ -47,6 +50,17 @@ namespace SessionViewer
         #endregion
 
         #region Properties
+        /// <summary>
+        /// 
+        /// </summary>
+        public int Threads
+        {
+            get
+            {
+                return int.Parse(cboThreads.Items[cboThreads.SelectedIndex].ToString());
+            }
+        }
+
         /// <summary>
         /// 
         /// </summary>

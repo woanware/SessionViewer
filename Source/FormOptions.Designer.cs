@@ -35,13 +35,15 @@
             this.cboSessionInterval = new System.Windows.Forms.ComboBox();
             this.lblBufferInterval = new System.Windows.Forms.Label();
             this.lblSessionInterval = new System.Windows.Forms.Label();
+            this.lblThreads = new System.Windows.Forms.Label();
+            this.cboThreads = new System.Windows.Forms.ComboBox();
             this.SuspendLayout();
             // 
             // btnCancel
             // 
             this.btnCancel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
             this.btnCancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            this.btnCancel.Location = new System.Drawing.Point(148, 72);
+            this.btnCancel.Location = new System.Drawing.Point(148, 98);
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.Size = new System.Drawing.Size(75, 23);
             this.btnCancel.TabIndex = 9;
@@ -52,7 +54,7 @@
             // btnOk
             // 
             this.btnOk.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnOk.Location = new System.Drawing.Point(68, 72);
+            this.btnOk.Location = new System.Drawing.Point(68, 98);
             this.btnOk.Name = "btnOk";
             this.btnOk.Size = new System.Drawing.Size(75, 23);
             this.btnOk.TabIndex = 8;
@@ -73,7 +75,7 @@
             "10",
             "15",
             "20"});
-            this.cboBufferInterval.Location = new System.Drawing.Point(121, 8);
+            this.cboBufferInterval.Location = new System.Drawing.Point(121, 37);
             this.cboBufferInterval.Name = "cboBufferInterval";
             this.cboBufferInterval.Size = new System.Drawing.Size(100, 23);
             this.cboBufferInterval.TabIndex = 11;
@@ -91,7 +93,7 @@
             "10",
             "15",
             "20"});
-            this.cboSessionInterval.Location = new System.Drawing.Point(121, 38);
+            this.cboSessionInterval.Location = new System.Drawing.Point(121, 66);
             this.cboSessionInterval.Name = "cboSessionInterval";
             this.cboSessionInterval.Size = new System.Drawing.Size(100, 23);
             this.cboSessionInterval.TabIndex = 12;
@@ -99,7 +101,7 @@
             // lblBufferInterval
             // 
             this.lblBufferInterval.AutoSize = true;
-            this.lblBufferInterval.Location = new System.Drawing.Point(15, 12);
+            this.lblBufferInterval.Location = new System.Drawing.Point(14, 41);
             this.lblBufferInterval.Name = "lblBufferInterval";
             this.lblBufferInterval.Size = new System.Drawing.Size(103, 15);
             this.lblBufferInterval.TabIndex = 13;
@@ -108,18 +110,46 @@
             // lblSessionInterval
             // 
             this.lblSessionInterval.AutoSize = true;
-            this.lblSessionInterval.Location = new System.Drawing.Point(8, 41);
+            this.lblSessionInterval.Location = new System.Drawing.Point(7, 69);
             this.lblSessionInterval.Name = "lblSessionInterval";
             this.lblSessionInterval.Size = new System.Drawing.Size(110, 15);
             this.lblSessionInterval.TabIndex = 14;
             this.lblSessionInterval.Text = "Session Interval (m)";
+            // 
+            // lblThreads
+            // 
+            this.lblThreads.AutoSize = true;
+            this.lblThreads.Location = new System.Drawing.Point(68, 12);
+            this.lblThreads.Name = "lblThreads";
+            this.lblThreads.Size = new System.Drawing.Size(49, 15);
+            this.lblThreads.TabIndex = 16;
+            this.lblThreads.Text = "Threads";
+            // 
+            // cboThreads
+            // 
+            this.cboThreads.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cboThreads.FormattingEnabled = true;
+            this.cboThreads.Items.AddRange(new object[] {
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "8"});
+            this.cboThreads.Location = new System.Drawing.Point(122, 8);
+            this.cboThreads.Name = "cboThreads";
+            this.cboThreads.Size = new System.Drawing.Size(100, 23);
+            this.cboThreads.TabIndex = 15;
             // 
             // FormOptions
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.CancelButton = this.btnCancel;
-            this.ClientSize = new System.Drawing.Size(233, 104);
+            this.ClientSize = new System.Drawing.Size(233, 130);
+            this.Controls.Add(this.lblThreads);
+            this.Controls.Add(this.cboThreads);
             this.Controls.Add(this.lblSessionInterval);
             this.Controls.Add(this.lblBufferInterval);
             this.Controls.Add(this.cboSessionInterval);
@@ -148,5 +178,7 @@
         private System.Windows.Forms.ComboBox cboSessionInterval;
         private System.Windows.Forms.Label lblBufferInterval;
         private System.Windows.Forms.Label lblSessionInterval;
+        private System.Windows.Forms.Label lblThreads;
+        private System.Windows.Forms.ComboBox cboThreads;
     }
 }

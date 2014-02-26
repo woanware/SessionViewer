@@ -77,9 +77,7 @@ namespace SessionViewer.SessionProcessors
         private string outputDirectory = string.Empty;
         private BlockingCollection<Session> blockingCollection;
         private readonly object _lock = new object();
-        private bool processed = false;
-        private bool processing = false;
-        private HttpKit.HttpParser parser;
+        private HttpKit.Parser parser;
 
         // List of the file sigs that we care about
         private List<FileSig> fileSigs = new List<FileSig>()
@@ -118,8 +116,6 @@ namespace SessionViewer.SessionProcessors
                     {
                         try
                         {
-                            this.processing = true;
-
                             string path = System.IO.Path.Combine(this.dataDirectory,
                                                                  session.Guid.Substring(0, 2),
                                                                  session.Guid + ".bin");
@@ -130,9 +126,9 @@ namespace SessionViewer.SessionProcessors
                             }
 
                             // Parse the HTTP session into its component requests and responses, and perform any required dechunking, gzipping etc
-                            using (FileStream fileStream = new FileStream(path, 
-                                                                          FileMode.Open, 
-                                                                          FileAccess.Read, 
+                            using (FileStream fileStream = new FileStream(path,
+                                                                          FileMode.Open,
+                                                                          FileAccess.Read,
                                                                           FileShare.ReadWrite))
                             {
                                 this.parser.Parse(fileStream, path);
@@ -154,16 +150,7 @@ namespace SessionViewer.SessionProcessors
                                 ProcessFiles(session, message);
                             }
                         }
-                        finally
-                        {
-                            if (this.processed == true & this.blockingCollection.Count == 0)
-                            {
-                                Thread.Sleep(new TimeSpan(0, 0, 5));
-                                this.cancelSource.Cancel();
-                            }
-
-                            this.processing = false;
-                        }
+                        catch (Exception) { }
                     }
                 }
                 catch (OperationCanceledException) { }
@@ -196,7 +183,7 @@ namespace SessionViewer.SessionProcessors
             this.outputDirectory = outputDirectory;
             this.dataDirectory = dataDirectory;
 
-            this.parser = new HttpKit.HttpParser();
+            this.parser = new HttpKit.Parser();
         }
 
         /// <summary>
@@ -258,19 +245,6 @@ namespace SessionViewer.SessionProcessors
         public void Stop()
         {
             this.cancelSource.Cancel();
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public void SetProcessed()
-        {
-            this.processed = true;
-
-            if (this.processing == false & this.blockingCollection.Count == 0)
-            {
-                Stop();
-            }
         }
         #endregion
 
@@ -430,7 +404,7 @@ namespace SessionViewer.SessionProcessors
         {
             get
             {
-                return "File Extractor (Sig)";
+                return "HTTP File Extractor";
             }
         }
 

@@ -28,11 +28,9 @@ namespace SessionViewer
         private HourGlass _hourGlass;
         private Parser _parser;
         private string dataDirectory = string.Empty;
-        //private List<Session> _sessions = null;
         private List<InterfaceExtractor> extractors;
         private List<InterfaceParser> parsers;
         private string _selectedGuid = string.Empty;
-        private int maxThreads = 1;
         private Extractor extractor;
         #endregion
 
@@ -44,41 +42,32 @@ namespace SessionViewer
         {
             InitializeComponent();
 
-            ////// enable internal logging to the console
-            //InternalLogger.LogToConsole = true;
-
-            ////// enable internal logging to a file
-            //InternalLogger.LogFile = "C:\\USBDeviceForensics\\log2.txt";
-
-            ////// set internal log level
-            //InternalLogger.LogLevel = LogLevel.Trace;
-
             LoggingExtensions.Logging.Log.InitializeWith<LoggingExtensions.NLog.NLogLog>();
-
-            //this.Log().Debug(() => "Testing testing 123!");
-
-            //Logger logger = LogManager.GetLogger("MyClassName");
-            //logger.Debug("testing testing 123!");
 
             this.extractor = new Extractor();
             this.extractor.CompleteEvent += OnExtractor_CompleteEvent;
 
-            _parser = new Parser();
-            _parser.Complete += OnParser_Complete;
-            _parser.Error += OnParser_Error;
-            _parser.Exclamation += OnParser_Exclamation;
-            _parser.Message += OnParser_Message;
-
             this.extractors = new List<InterfaceExtractor>();
             SmtpExtractor smtp = new SmtpExtractor();
-            //smtp.Complete += OnProcessor_Complete;
-            //smtp.Error += OnProcessor_Error;
-            //smtp.Message += OnProcessor_Message;
-            //smtp.Warning += OnProcessor_Warning;
+            smtp.CompleteEvent += OnProcessor_Complete;
+            smtp.ErrorEvent += OnProcessor_Error;
+            smtp.MessageEvent += OnProcessor_Message;
+            smtp.WarningEvent += OnProcessor_Warning;
             this.extractors.Add(smtp);
 
             HttpFileExtractor http = new HttpFileExtractor();
+            http.CompleteEvent += OnProcessor_Complete;
+            http.ErrorEvent += OnProcessor_Error;
+            http.MessageEvent += OnProcessor_Message;
+            http.WarningEvent += OnProcessor_Warning;
             this.extractors.Add(http);
+
+            UrlExtractor url = new UrlExtractor();
+            url.CompleteEvent += OnProcessor_Complete;
+            url.ErrorEvent += OnProcessor_Error;
+            url.MessageEvent += OnProcessor_Message;
+            url.WarningEvent += OnProcessor_Warning;
+            this.extractors.Add(url);
 
             this.parsers = new List<InterfaceParser>();
             this.parsers.Add(new DnsParser());
@@ -469,7 +458,7 @@ namespace SessionViewer
 
             Task task = Task.Factory.StartNew(() =>
             {
-                this.extractor.Initialise(this.maxThreads,
+                this.extractor.Initialise(this._settings.Threads,
                                           temp,
                                           this.dataDirectory,
                                           outputDirectory);
@@ -579,7 +568,8 @@ namespace SessionViewer
         /// <param name="e"></param>
         private void menuToolsOptions_Click(object sender, EventArgs e)
         {
-            using (FormOptions formOptions = new FormOptions(_settings.BufferInterval, 
+            using (FormOptions formOptions = new FormOptions(_settings.Threads,
+                                                             _settings.BufferInterval, 
                                                              _settings.SessionInterval))
             {
                 if (formOptions.ShowDialog(this) == DialogResult.Cancel)
@@ -587,13 +577,15 @@ namespace SessionViewer
                     return;
                 }
 
+                _settings.Threads = formOptions.Threads;
                 _settings.BufferInterval = formOptions.BufferInterval;
                 _settings.SessionInterval = formOptions.SessionInterval;
 
                 if (_parser != null)
                 {
-                    _parser.BufferInterval = formOptions.BufferInterval;
-                    _parser.SessionInterval = formOptions.SessionInterval;
+                    _parser.Threads = _settings.Threads;
+                    _parser.BufferInterval = _settings.BufferInterval;
+                    _parser.SessionInterval = _settings.SessionInterval;
                 }
             }
         }
@@ -627,6 +619,12 @@ namespace SessionViewer
                 }
             }
 
+            // Configure the parser object
+            _parser = new Parser(_settings.Threads);
+            _parser.Complete += OnParser_Complete;
+            _parser.Error += OnParser_Error;
+            _parser.Exclamation += OnParser_Exclamation;
+            _parser.Message += OnParser_Message;
             _parser.BufferInterval = _settings.BufferInterval;
             _parser.SessionInterval = _settings.SessionInterval;
         }
@@ -702,6 +700,7 @@ namespace SessionViewer
             {
                 using (new HourGlass(this))
                 {
+                    this.UpdateStatusBar("Loading sessions...");
                     List<Session> sessions = new List<Session>();
                     using (DbConnection connection = Db.GetOpenConnection(this.dataDirectory))
                     using (var db = new NPoco.Database(connection, NPoco.DatabaseType.SQLCe))
@@ -715,11 +714,10 @@ namespace SessionViewer
                         }
                         catch (Exception ex)
                         {
-                            UserInterface.DisplayErrorMessageBox(this, "An error occurred whilst retreiving the session records: " + ex.Message);
+                            UserInterface.DisplayErrorMessageBox(this, "An error occurred whilst retrieving the session records: " + ex.Message);
                         }
                     }  
 
-                    //listSession.ClearObjects();
                     listSession.SetObjects(sessions);
 
                     if (listSession.Items.Count > 0)
@@ -738,6 +736,8 @@ namespace SessionViewer
                     olvcHttpMethods.AutoResize(ColumnHeaderAutoResizeStyle.ColumnContent);
                     olvcTimestampFirstPacket.AutoResize(ColumnHeaderAutoResizeStyle.ColumnContent);
                     olvcTimestampLastPacket.AutoResize(ColumnHeaderAutoResizeStyle.ColumnContent);
+
+                    this.UpdateStatusBar(string.Empty);
                 }
             };
 
@@ -807,7 +807,6 @@ namespace SessionViewer
                                 AlternateDataStreamInfo ads = fileInfo.GetAlternateDataStream("txt", FileMode.Open);
                                 using (TextReader reader = ads.OpenText())
                                 {
-
                                     txtSession.Text = reader.ReadToEnd();
                                     txtSession.ScrollToTop();
                                 }

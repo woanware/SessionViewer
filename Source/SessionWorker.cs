@@ -1,11 +1,9 @@
-﻿using HttpKit;
-using SessionViewer.PacketProcessors;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Linq;
 
 namespace SessionViewer
 {
@@ -16,8 +14,6 @@ namespace SessionViewer
         public int Id { get; private set; }
         private CancellationTokenSource cancelSource = null;
         private BlockingCollection<SessionTask> blockingCollection;
-        private bool processed = false;
-        private bool processing = false;
         private List<InterfaceSessionParser> parsers;
 
         /// <summary>
@@ -31,7 +27,6 @@ namespace SessionViewer
             this.blockingCollection = blockingCollection;
 
             this.parsers = new List<InterfaceSessionParser>();
-            //this.parsers.Add(new DnsParser());
             this.parsers.Add(new SessionViewer.SessionParsers.HttpParser());
         }
 
@@ -50,9 +45,6 @@ namespace SessionViewer
                     {
                         try
                         {
-                            this.processing = true;
-
-                            //Console.WriteLine("Processing: (" +this.Id + ") " + System.IO.Path.Combine(sessionTask.OutputPath, sessionTask.Session.Guid.Substring(0, 2), sessionTask.Session.Guid + ".bin"));
                             var parser = (from p in this.parsers where sessionTask.Parser.ToLower() == sessionTask.Parser.ToLower() select p).SingleOrDefault();
                             if (parser == null)
                             {
@@ -61,21 +53,18 @@ namespace SessionViewer
 
                             parser.Process(sessionTask.OutputPath, sessionTask.Session);
                         }
-                        finally
-                        {
-                            if (this.processed == true & this.blockingCollection.Count == 0)
-                            {
-                                Thread.Sleep(new TimeSpan(0, 0, 5));
-                                this.cancelSource.Cancel();
-                            }
-
-                            this.processing = false;
-                        }
+                        catch (Exception){}
                     }
+
+                    Console.WriteLine("WORKER EXIT");
                 }
-                catch (OperationCanceledException) { }
+                catch (OperationCanceledException) 
+                {
+                    Console.WriteLine("WORKER CANCELL");
+                }
                 catch (Exception ex)
                 {
+                    Console.WriteLine("WORKER ERORR" + ex.ToString());
                     //System.Console.WriteLine(ex.ToString());
                 }
                 finally
@@ -92,19 +81,6 @@ namespace SessionViewer
         public void Stop()
         {
             this.cancelSource.Cancel();
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public void SetProcessed()
-        {
-            this.processed = true;
-
-            if (this.processing == false & this.blockingCollection.Count == 0)
-            {
-                Stop();
-            }
         }
 
         #region Event Methods

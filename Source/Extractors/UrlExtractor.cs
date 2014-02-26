@@ -12,6 +12,8 @@ using System.Threading;
 using woanware;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
+using Trinet.Core.IO.Ntfs;
+using Extractors;
 
 namespace SessionViewer.SessionProcessors
 {
@@ -32,8 +34,6 @@ namespace SessionViewer.SessionProcessors
         private BlockingCollection<Session> blockingCollection;
         private string dataDirectory = string.Empty;
         private string outputDirectory = string.Empty;
-        private bool processed = false;
-        private bool processing = false;
 
         /// <summary>
         /// 
@@ -50,8 +50,6 @@ namespace SessionViewer.SessionProcessors
                     {
                         try
                         {
-                            this.processing = true;
-
                             string path = System.IO.Path.Combine(this.dataDirectory,
                                                                  session.Guid.Substring(0, 2),
                                                                  session.Guid + ".bin");
@@ -61,19 +59,17 @@ namespace SessionViewer.SessionProcessors
                                 continue;
                             }
 
-                            //byte[] temp = File.ReadAllBytes(System.IO.Path.Combine(dataDirectory, session.Guid.Substring(0, 2), session.Guid + ".bin"));
-                            //ProcessAttachments(session, temp);
-                        }
-                        finally
-                        {
-                            if (this.processed == true & this.blockingCollection.Count == 0)
+                            FileInfo fileInfo = new FileInfo(path);
+
+                            // Info
+                            if (fileInfo.AlternateDataStreamExists("info") == false)
                             {
-                                Thread.Sleep(new TimeSpan(0, 0, 5));
-                                this.cancelSource.Cancel();
+                                continue;
                             }
 
-                            this.processing = false;
+                            ProcessUrls(session, fileInfo);
                         }
+                        catch (Exception) { }
                     }
                 }
                 catch (OperationCanceledException) { }
@@ -98,13 +94,13 @@ namespace SessionViewer.SessionProcessors
         /// <param name="dataDirectory"></param>
         public void Initialise(int id,
                                BlockingCollection<Session> blockingCollection,
-                               string outputDirectory,
-                               string dataDirectory)
+                               string dataDirectory,
+                               string outputDirectory)
         {
             this.Id = id;
             this.blockingCollection = blockingCollection;
-            this.outputDirectory = outputDirectory;
             this.dataDirectory = dataDirectory;
+            this.outputDirectory = outputDirectory;
         }
 
         /// <summary>
@@ -114,6 +110,7 @@ namespace SessionViewer.SessionProcessors
         /// <param name="outputDirectory"></param>
         public void PreProcess(string dataDirectory, string outputDirectory)
         {
+            IO.WriteTextToFile("\"URL\",\"Src IP\",\"Src Port\",\"Dst IP\",\"Dst Port\"" + Environment.NewLine, System.IO.Path.Combine(outputDirectory, "Urls.csv"), false);
         }
 
         /// <summary>
@@ -123,7 +120,39 @@ namespace SessionViewer.SessionProcessors
         /// <param name="outputDirectory"></param>
         public void PostProcess(string dataDirectory, string outputDirectory)
         {
+            CsvConfiguration csvConfiguration = new CsvConfiguration();
+            csvConfiguration.QuoteAllFields = true;
 
+            using (FileStream fileStream = new FileStream(System.IO.Path.Combine(outputDirectory, "Urls.csv"), FileMode.Append, FileAccess.Write, FileShare.Read))
+            using (StreamWriter streamWriter = new StreamWriter(fileStream))
+            using (CsvHelper.CsvWriter csvWriter = new CsvHelper.CsvWriter(streamWriter, csvConfiguration))
+            {
+                foreach (string file in System.IO.Directory.EnumerateFiles(outputDirectory,
+                                                                           "*.xml",
+                                                                           SearchOption.AllDirectories))
+                {
+                    string fileName = System.IO.Path.GetFileName(file);
+                    if (fileName.StartsWith("Url.Details.") == false)
+                    {
+                        continue;
+                    }
+
+                    UrlDetails urlDetails = new UrlDetails();
+                    string ret = urlDetails.Load(file);
+                    if (ret.Length == 0)
+                    {
+                        foreach (string url in urlDetails.Urls)
+                        {
+                            csvWriter.WriteField(url);
+                            csvWriter.WriteField(urlDetails.SrcIp);
+                            csvWriter.WriteField(urlDetails.SrcPort);
+                            csvWriter.WriteField(urlDetails.DstIp);
+                            csvWriter.WriteField(urlDetails.DstPort);
+                            csvWriter.NextRecord();
+                        }
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -137,13 +166,45 @@ namespace SessionViewer.SessionProcessors
         /// <summary>
         /// 
         /// </summary>
-        public void SetProcessed()
+        /// <param name="session"></param>
+        /// <param name="fileInfo"></param>
+        private void ProcessUrls(Session session, FileInfo fileInfo)
         {
-            this.processed = true;
-
-            if (this.processing == false & this.blockingCollection.Count == 0)
+            AlternateDataStreamInfo ads = fileInfo.GetAlternateDataStream("info", FileMode.Open);
+            using (TextReader reader = ads.OpenText())
             {
-                Stop();
+                UrlDetails urlDetails = new UrlDetails();
+                urlDetails.SrcIp = session.SrcIpText;
+                urlDetails.SrcPort = session.SourcePort;
+                urlDetails.DstIp = session.DstIpText;
+                urlDetails.DstPort = session.DestinationPort;
+
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    if (line.StartsWith("LINK: ") == false)
+                    {
+                        continue;
+                    }
+
+                    string url = line.Substring(6);
+
+                    if (urlDetails.Urls.Contains(session.HttpHost + url) == false)
+                    {
+                        urlDetails.Urls.Add(session.HttpHost + url);
+                    }
+                }
+
+                if (urlDetails.Urls.Count > 0)
+                {
+                    string dir = session.SrcIpText + "." + session.SourcePort + "-" + session.DstIpText + "." + session.DestinationPort;
+                    if (System.IO.Directory.Exists(System.IO.Path.Combine(this.outputDirectory, dir)) == false)
+                    {
+                        IO.CreateDirectory(System.IO.Path.Combine(this.outputDirectory, dir));
+                    }
+
+                    urlDetails.Save(System.IO.Path.Combine(this.outputDirectory, dir, "Url.Details." + session.Guid + ".xml"));
+                }
             }
         }
 

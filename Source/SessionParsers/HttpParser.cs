@@ -16,7 +16,7 @@ namespace SessionViewer.SessionParsers
     public class HttpParser : InterfaceSessionParser
     {
         #region Member Variables
-        private HttpKit.HttpParser parser;
+        private HttpKit.Parser parser;
         private Session session;
         private string outputPath = string.Empty;
         private string outputFile = string.Empty;
@@ -28,7 +28,7 @@ namespace SessionViewer.SessionParsers
         /// </summary>
         public HttpParser()
         {
-            parser = new HttpKit.HttpParser();
+            parser = new HttpKit.Parser();
             Enabled = true;
         }
         #endregion

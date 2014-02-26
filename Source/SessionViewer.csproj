@@ -93,6 +93,9 @@
     <Reference Include="System.Core" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
+    <Reference Include="System.Data.SQLite">
+      <HintPath>..\Dependencies\Sqlite\System.Data.SQLite.dll</HintPath>
+    </Reference>
     <Reference Include="System.Data.SqlServerCe, Version=3.5.1.0, Culture=neutral, PublicKeyToken=89845dcd8080cc91, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>C:\Program Files (x86)\Microsoft SQL Server Compact Edition\v4.0\Desktop\System.Data.SqlServerCe.dll</HintPath>
@@ -125,6 +128,7 @@
     <Compile Include="Extractors\FileDetails.cs" />
     <Compile Include="Extractors\HttpFileExtractor.cs" />
     <Compile Include="Extractors\MessageDetails.cs" />
+    <Compile Include="Extractors\UrlDetails.cs" />
     <Compile Include="Extractors\UrlExtractor.cs" />
     <Compile Include="Interfaces\InterfaceSessionParser.cs" />
     <Compile Include="Interfaces\InterfaceParser.cs" />
@@ -248,7 +252,6 @@
       <Name>HttpKit</Name>
     </ProjectReference>
   </ItemGroup>
-  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

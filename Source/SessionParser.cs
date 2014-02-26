@@ -1,6 +1,8 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace SessionViewer
 {
@@ -11,13 +13,15 @@ namespace SessionViewer
     {
         #region Events
         public event woanware.Events.DefaultEvent CompleteEvent;
+        public event woanware.Events.MessageEvent MessageEvent;
         #endregion
 
         #region Member Variables
         private BlockingCollection<SessionTask> blockingCollection;
         private List<SessionWorker> workers;
         private int maxThreads = 1;
-        private readonly object _lock = new object();
+        private readonly object locked = new object();
+        private long totalSessions = 0;
         #endregion
 
         #region Contructor
@@ -38,6 +42,7 @@ namespace SessionViewer
         /// <param name="sessionTask"></param>
         public void Add(SessionTask sessionTask)
         {
+            totalSessions++;
             this.blockingCollection.Add(sessionTask);
         }
 
@@ -54,6 +59,7 @@ namespace SessionViewer
                 SessionWorker sw = new SessionWorker(index + 1, this.blockingCollection);
                 sw.Start();
                 sw.CompleteEvent += Worker_CompleteEvent;
+
                 this.workers.Add(sw);
             }
         }
@@ -76,10 +82,8 @@ namespace SessionViewer
         /// <param name="batchCheck"></param>
         public void SetProcessed()
         {
-            for (int index = 0; index < this.workers.Count; index++)
-            {
-                this.workers[index].SetProcessed();
-            }
+            this.blockingCollection.CompleteAdding();
+            Console.WriteLine("ALL PROCESSED");
         }
         #endregion
 
@@ -90,8 +94,9 @@ namespace SessionViewer
         /// <param name="message"></param>
         private void Worker_CompleteEvent(string message)
         {
-            lock (_lock)
+            lock (this.locked)
             {
+                Console.WriteLine("WORKER REMOVE: " + message);
                 var worker = workers.Single(w => w.Id.ToString() == message);
                 worker.CompleteEvent -= Worker_CompleteEvent;
                 this.workers.Remove(worker);
@@ -99,6 +104,7 @@ namespace SessionViewer
 
             if (this.workers.Count == 0)
             {
+                Console.WriteLine("PARSER EXIT");
                 OnComplete();
             }
         }
@@ -115,6 +121,17 @@ namespace SessionViewer
                 return this.blockingCollection.Count;
             }
         }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public long TotalSessions
+        {
+            get
+            {
+                return this.totalSessions;
+            }
+        }
         #endregion
 
         #region Event Methods
@@ -127,6 +144,18 @@ namespace SessionViewer
             if (handler != null)
             {
                 handler();
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        private void OnMessage(string message)
+        {
+            var handler = MessageEvent;
+            if (handler != null)
+            {
+                handler(message);
             }
         }
         #endregion

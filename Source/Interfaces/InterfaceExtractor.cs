@@ -22,7 +22,7 @@ namespace SessionViewer
         void PostProcess(string dataDirectory, string outputDirectory);
         void Start();
         void Stop();
-        void SetProcessed();
+        //void SetProcessed();
         #endregion
 
         #region Properties

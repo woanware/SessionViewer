@@ -131,6 +131,8 @@ namespace SessionViewer
                 _storage.Dispose();
                 woanware.IO.WriteToFileStream(_storageHtml, Global.HTML_FOOTER);
                 _storageHtml.Dispose();
+
+                this.Reset();
             }
             catch (Exception) {}
         }
@@ -166,7 +168,13 @@ namespace SessionViewer
                     ulong length = (ulong)(tcp.Length - tcp.HeaderLength);
                     if (length == 0)
                     {
-                       return;
+                        //Console.WriteLine("Invalid length (TCP): " + ip.Source.ToString() + "#" + ip.Destination.ToString());
+                        //return;
+                    }
+
+                    if (tcp.IsFin == true)
+                    {
+                        this.HasFin = true;
                     }
 
                     uint acknowledged = Convert.ToUInt32(tcp.IsAcknowledgment);
@@ -193,7 +201,8 @@ namespace SessionViewer
                     ulong length = (ulong)(udp.Length);
                     if (length == 0)
                     {
-                        return;
+                        Console.WriteLine("Invalid length (UDP): " + ip.Source.ToString() + "#" + ip.Destination.ToString());
+                        //return;
                     }
 
                     int index = ReassembleUdp(length,
@@ -772,7 +781,7 @@ namespace SessionViewer
         /// <summary>
         /// Cleans the linked list
         /// </summary>
-        private void ResetTcpReassembly()
+        private void Reset()
         {
             try
             {

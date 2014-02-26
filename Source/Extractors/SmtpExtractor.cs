@@ -1,18 +1,17 @@
 ﻿using CsvHelper.Configuration;
-using System.IO.Compression;
+using Extractors;
 using MimeKit;
 using System;
-using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using System.Threading;
-using woanware;
-using System.Collections.Concurrent;
 using System.Threading.Tasks;
-using Extractors;
+using woanware;
 
 namespace SessionViewer.SessionProcessors
 {
@@ -34,8 +33,6 @@ namespace SessionViewer.SessionProcessors
         private string outputDirectory = string.Empty;
         private BlockingCollection<Session> blockingCollection;
         private readonly object _lock = new object();
-        private bool processed = false;
-        private bool processing = false;
 
         #region Public Methods
         /// <summary>
@@ -71,8 +68,6 @@ namespace SessionViewer.SessionProcessors
                     {
                         try
                         {
-                            this.processing = true;
-
                             string path = System.IO.Path.Combine(this.dataDirectory,
                                                                  session.Guid.Substring(0, 2),
                                                                  session.Guid + ".bin");
@@ -85,16 +80,7 @@ namespace SessionViewer.SessionProcessors
                             byte[] temp = File.ReadAllBytes(path);
                             ProcessAttachments(session, temp);
                         }
-                        finally
-                        {
-                            if (this.processed == true & this.blockingCollection.Count == 0)
-                            {
-                                Thread.Sleep(new TimeSpan(0, 0, 5));
-                                this.cancelSource.Cancel();
-                            }
-
-                            this.processing = false;
-                        }
+                        catch (Exception) { }
                     }
                 }
                 catch (OperationCanceledException) { }
@@ -182,18 +168,18 @@ namespace SessionViewer.SessionProcessors
             this.cancelSource.Cancel();
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        public void SetProcessed()
-        {
-            this.processed = true;
+        ///// <summary>
+        ///// 
+        ///// </summary>
+        //public void SetProcessed()
+        //{
+        //    this.processed = true;
 
-            if (this.processing == false & this.blockingCollection.Count == 0)
-            {
-                Stop();
-            }
-        }
+        //    if (this.processing == false & this.blockingCollection.Count == 0)
+        //    {
+        //        Stop();
+        //    }
+        //}
         #endregion
 
         /// <summary>

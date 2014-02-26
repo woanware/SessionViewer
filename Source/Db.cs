@@ -29,6 +29,22 @@ namespace SessionViewer
 , [DestinationPort] int NULL
 , [DestinationCountry] nvarchar(2) NULL
 );";
+
+        private const string SQL_TABLE_SESSION2 = @"CREATE TABLE [Sessions] ( 
+    Id          INTEGER          PRIMARY KEY AUTOINCREMENT,
+    Guid        VARCHAR( 36 )    NOT NULL,
+    HttpHost    VARCHAR( 1024 ),
+    HttpMethods VARCHAR( 100 ) ,
+    DataSize BIGINT,
+    TimestampFirstPacket DATETIME,
+    TimestampLastPacket DATETIME,
+    SourceIp BIGINT,
+    SourcePort INT,
+    SourceCountry VARCHAR(2),
+    DestinationIp BIGINT,
+    DestinationPort INT,
+    DestinationCountry VARCHAR(2)
+);";
         #endregion
 
         #region SQL_TABLE_SESSION_PK
@@ -75,12 +91,73 @@ namespace SessionViewer
 
         /// <summary>
         /// 
+        ///// </summary>
+        ///// <param name="fileName"></param>
+        ///// <returns></returns>
+        //public static string CreateDatabase2(string fileName)
+        //{
+        //    try
+        //    {
+        //        //using (System.Data.SQLite.d sqlCeEngine = new SqlCeEngine(GetConnectionString(fileName)))
+        //        //{
+        //            //sqlCeEngine.CreateDatabase();
+
+        //        System.Data.SQLite.SQLiteConnection.CreateFile(Path.Combine(fileName, Global.DB_FILE));
+        //            using (System.Data.SQLite.SQLiteConnection connection = new System.Data.SQLite.SQLiteConnection(GetConnectionString2(fileName)))
+        //            {
+        //                connection.Open();
+
+        //                using (System.Data.SQLite.SQLiteCommand command = new System.Data.SQLite.SQLiteCommand(SQL_TABLE_SESSION2, connection))
+        //                {
+        //                    command.ExecuteNonQuery();
+        //                }
+
+        //                //using (System.Data.SQLite.SQLiteCommand command = new System.Data.SQLite.SQLiteCommand(SQL_TABLE_SESSION_PK, connection))
+        //                //{
+        //                //    command.ExecuteNonQuery();
+        //                //}
+        //            }
+        //        //}
+
+        //        return string.Empty;
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return ex.Message;
+        //    }
+        //}
+
+        ///// <summary>
+        ///// 
+        ///// </summary>
+        ///// <returns></returns>
+        //public static string GetConnectionString2(string outputPath)
+        //{
+        //    return string.Format("Data Source=\"{0}\";Version=3;", Path.Combine(outputPath, Global.DB_FILE));
+        //}
+
+        /// <summary>
+        /// 
         /// </summary>
         /// <returns></returns>
         public static string GetConnectionString(string outputPath)
         {
             return string.Format("DataSource=\"{0}\"; Max Database Size=4091", Path.Combine(outputPath, Global.DB_FILE));
         }
+
+        //
+
+        ///// <summary>
+        ///// 
+        ///// </summary>
+        ///// <returns></returns>
+        //public static DbConnection GetOpenConnection2(string outputPath)
+        //{
+        //    var connection = new System.Data.SQLite.SQLiteConnection(GetConnectionString2(outputPath));
+        //    connection.Open();
+
+        //    return connection;
+        //}
 
         /// <summary>
         /// 
